@@ -133,8 +133,8 @@ class CreditPack(Base):
 class CreditTransaction(Base):
     """
     One attempted/completed credit purchase. Created in 'created' state when
-    the web checkout page requests a Razorpay order, then moved to 'paid' or
-    'failed' once Razorpay confirms the payment (via webhook or verify call).
+    the web checkout page requests a Cashfree order, then moved to 'paid' or
+    'failed' once Cashfree confirms the payment (via webhook or verify call).
     """
     __tablename__ = "credit_transactions"
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
@@ -142,8 +142,8 @@ class CreditTransaction(Base):
     credit_pack_id = Column(UUID(as_uuid=False), ForeignKey("credit_packs.id"))
     credits = Column(Integer, nullable=False)
     amount_inr = Column(Integer, nullable=False)
-    razorpay_order_id = Column(String, unique=True, nullable=True)
-    razorpay_payment_id = Column(String, nullable=True)
+    cashfree_order_id = Column(String, unique=True, nullable=True)
+    cashfree_payment_id = Column(String, nullable=True)
     status = Column(String, default="created")  # created | paid | failed
     created_at = Column(DateTime, default=dt.datetime.utcnow)
     paid_at = Column(DateTime, nullable=True)

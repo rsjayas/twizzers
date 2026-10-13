@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Buy Credits</title>
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<script src="https://sdk.cashfree.com/js/v3/cashfree.js"></script>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -143,34 +143,24 @@ async function startPayment() {
 
   setStatus('');
 
-  const rzp = new Razorpay({
-    key: orderData.razorpay_key_id,
-    amount: orderData.amount_paise,
-    currency: orderData.currency,
-    name: 'Tweezers Credits',
-    description: `${orderData.credits} credits`,
-    order_id: orderData.razorpay_order_id,
-    handler: async function (response) {
-      await verifyAndRedirect(orderData.transaction_id, response);
-    },
-    modal: {
-      ondismiss: function () {
-        setStatus('Payment cancelled.');
-        btn.disabled = false;
-      },
-    },
-    theme: { color: '#d1416b' },
+  const cashfree = Cashfree({ mode: orderData.cashfree_env });
+  // Opens Cashfree's hosted payment UI (cards/UPI/etc) in a modal.
+  const result = await cashfree.checkout({
+    paymentSessionId: orderData.payment_session_id,
+    redirectTarget: '_modal',
   });
 
-  rzp.on('payment.failed', function (resp) {
-    setStatus('Payment failed: ' + (resp.error && resp.error.description ? resp.error.description : 'unknown error'));
+  if (result.error) {
+    setStatus('Payment failed: ' + (result.error.message || 'unknown error'));
     btn.disabled = false;
-  });
-
-  rzp.open();
+    return;
+  }
+  // The modal also closes on cancel, so confirm with the backend either way:
+  // it asks Cashfree for the real order status and only credits if PAID.
+  await verifyAndRedirect(orderData.transaction_id, orderData.cashfree_order_id);
 }
 
-async function verifyAndRedirect(transactionId, rzpResponse) {
+async function verifyAndRedirect(transactionId, cashfreeOrderId) {
   setStatus('Confirming payment…');
   try {
     const res = await fetch(`${API_BASE}/credits/checkout/verify`, {
@@ -178,16 +168,19 @@ async function verifyAndRedirect(transactionId, rzpResponse) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         transaction_id: transactionId,
-        razorpay_order_id: rzpResponse.razorpay_order_id,
-        razorpay_payment_id: rzpResponse.razorpay_payment_id,
-        razorpay_signature: rzpResponse.razorpay_signature,
+        cashfree_order_id: cashfreeOrderId,
       }),
     });
+    if (res.status === 400) {
+      setStatus('Payment not completed.');
+      document.getElementById('payBtn').disabled = false;
+      return;
+    }
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     showSuccessAndRedirect(data);
   } catch (e) {
-    setStatus('Payment received but confirmation failed — contact support with your payment ID.');
+    setStatus('Could not confirm payment. If money was deducted, your credits will be added automatically shortly.');
   }
 }
 

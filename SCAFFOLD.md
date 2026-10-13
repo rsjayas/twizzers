@@ -40,7 +40,7 @@ tweezers/
 │                           its own domain, OUTSIDE the app, so buying
 │                           credits here is not an in-app purchase and
 │                           does not go through Google Play Billing.
-│                           Opens Razorpay checkout, confirms payment,
+│                           Opens Cashfree checkout, confirms payment,
 │                           redirects back into the app via a deep link.
 ├── docker-compose.yml     Postgres + backend, one command to run locally
 └── README.md              This file
@@ -61,7 +61,7 @@ This is controlled by one flag, `PAYMENTS_ENABLED` (default `false`):
   changes needed. Generation immediately starts enforcing the credit
   balance and checkout opens back up.
 
-Nothing about the credits system was removed — wallets, packs, Razorpay
+Nothing about the credits system was removed — wallets, packs, Cashfree
 order creation and signature verification, the webhook, all of it still
 runs underneath. Flipping the flag back on later just re-activates the
 checks; existing user data isn't touched.
@@ -77,7 +77,7 @@ which you host on your own domain (e.g. `pay.yourtweezers.com`). This is
 deliberate: since the purchase happens in a browser, not inside the
 Android app, it is not an "in-app purchase" under Google Play policy, so
 Google does not take a commission — you keep the full amount minus
-Razorpay's own gateway fee (~2%).
+the payment gateway's own fee.
 
 ### How the flow works end-to-end
 
@@ -89,14 +89,14 @@ Razorpay's own gateway fee (~2%).
 2. The page loads available credit packs (`GET /credits/packs`) and shows
    the user's current balance (`GET /credits/balance/{user_id}`).
 3. User picks a pack → page calls `POST /credits/checkout/create-order`,
-   which creates a Razorpay Order server-side and returns the order ID.
-4. Razorpay's checkout.js opens (hosted payment UI, handles cards/UPI/etc).
+   which creates a Cashfree order server-side and returns a payment session ID.
+4. Cashfree's JS SDK opens its checkout modal (hosted payment UI, handles cards/UPI/etc).
 5. On success, the page calls `POST /credits/checkout/verify` with the
-   payment details — the backend verifies the HMAC signature Razorpay
-   provides and credits the user's wallet (idempotently).
+   order ID — the backend asks Cashfree for the order status and, if it
+   is PAID for the right amount, credits the user's wallet (idempotently).
 6. The page redirects back into the app via a custom URL scheme
    (`tweezers://credits-success?...` — register this scheme in your
-   Android/iOS app). A Razorpay webhook (`POST /credits/webhook`) is the
+   Android/iOS app). A Cashfree webhook (`POST /credits/webhook`) is the
    backup source of truth in case the browser closes right after payment,
    before the redirect fires.
 7. Back in the app, `poems/generate` checks and deducts credits
@@ -105,11 +105,12 @@ Razorpay's own gateway fee (~2%).
 
 ### Setting this up for real
 
-- Get Razorpay API keys at https://dashboard.razorpay.com/app/keys and set
-  `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` in `backend/.env`
-- Configure a webhook in the Razorpay dashboard pointing at
-  `https://yourdomain.com/credits/webhook`, subscribed to the
-  `payment.captured` event, and set `RAZORPAY_WEBHOOK_SECRET` to match
+- Get Cashfree API keys from the Cashfree merchant dashboard (Developers >
+  API Keys) and set `CASHFREE_CLIENT_ID` / `CASHFREE_CLIENT_SECRET` in
+  `backend/.env`; use `CASHFREE_ENV=sandbox` until you go live
+- Configure a webhook in the Cashfree dashboard pointing at
+  `https://yourdomain.com/credits/webhook`, subscribed to the payment
+  success event (webhooks are signed with the client secret)
 - Host `web-checkout/credits.html` on your own domain (any static host —
   Cloudflare Pages, Vercel, S3, etc. all work since it's a single file)
 - Register `tweezers://credits-success` (or your own scheme) as a deep

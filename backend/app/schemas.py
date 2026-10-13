@@ -124,18 +124,17 @@ class CreateCheckoutOrderRequest(BaseModel):
 
 class CreateCheckoutOrderResponse(BaseModel):
     transaction_id: str
-    razorpay_order_id: str
-    razorpay_key_id: str
-    amount_paise: int
+    cashfree_order_id: str
+    payment_session_id: str
+    cashfree_env: str    # "sandbox" | "production" - passed to Cashfree's JS SDK
+    amount_inr: int
     currency: str = "INR"
     credits: int
 
 
 class VerifyPaymentRequest(BaseModel):
     transaction_id: str
-    razorpay_order_id: str
-    razorpay_payment_id: str
-    razorpay_signature: str
+    cashfree_order_id: str
 
 
 class VerifyPaymentResponse(BaseModel):

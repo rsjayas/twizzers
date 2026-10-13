@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 
-from .. import models, schemas, razorpay_client
+from .. import models, schemas, cashfree_client
 from ..database import get_db
 
 router = APIRouter(prefix="/credits", tags=["credits"])
@@ -31,7 +31,7 @@ def get_balance(user_id: str, db: Session = Depends(get_db)):
 async def create_checkout_order(payload: schemas.CreateCheckoutOrderRequest, db: Session = Depends(get_db)):
     """
     Called by the standalone web checkout page (NOT from inside the app)
-    to start a Razorpay order for a credit pack purchase.
+    to start a Cashfree order for a credit pack purchase.
     """
     if not PAYMENTS_ENABLED:
         raise HTTPException(503, "Payments are not enabled yet - everything is free for now.")
@@ -57,19 +57,34 @@ async def create_checkout_order(payload: schemas.CreateCheckoutOrderRequest, db:
     db.add(txn)
     db.flush()
 
-    order = await razorpay_client.create_order(
-        amount_inr=pack.price_inr,
-        receipt=f"credit_txn_{txn.id}",
-        notes={"user_id": user.id, "credit_pack_id": pack.id, "transaction_id": txn.id},
-    )
-    txn.razorpay_order_id = order["id"]
+    # Cashfree requires a 10-digit customer phone; fall back to a placeholder
+    # for users who haven't given one (auth is still a stub).
+    digits = "".join(c for c in (user.phone or "") if c.isdigit())[-10:]
+    phone = digits if len(digits) == 10 else "9999999999"
+
+    cf_order_id = f"credit_txn_{txn.id}"
+    try:
+        order = await cashfree_client.create_order(
+            order_id=cf_order_id,
+            amount_inr=pack.price_inr,
+            customer_id=user.id,
+            customer_phone=phone,
+            customer_email=user.email,
+            note=f"{pack.credits} credits",
+        )
+    except cashfree_client.CashfreeError as e:
+        txn.status = "failed"
+        db.commit()
+        raise HTTPException(502, str(e))
+    txn.cashfree_order_id = order["order_id"]
     db.commit()
 
     return schemas.CreateCheckoutOrderResponse(
         transaction_id=txn.id,
-        razorpay_order_id=order["id"],
-        razorpay_key_id=razorpay_client.RAZORPAY_KEY_ID,
-        amount_paise=order["amount"],
+        cashfree_order_id=order["order_id"],
+        payment_session_id=order["payment_session_id"],
+        cashfree_env=cashfree_client.CASHFREE_ENV,
+        amount_inr=pack.price_inr,
         credits=pack.credits,
     )
 
@@ -88,30 +103,30 @@ def _credit_wallet_if_needed(db: Session, txn: models.CreditTransaction) -> mode
 
 
 @router.post("/checkout/verify", response_model=schemas.VerifyPaymentResponse)
-def verify_payment(payload: schemas.VerifyPaymentRequest, db: Session = Depends(get_db)):
+async def verify_payment(payload: schemas.VerifyPaymentRequest, db: Session = Depends(get_db)):
     """
-    Called by the web checkout page immediately after Razorpay's client-side
-    checkout succeeds. Confirms the signature, credits the wallet, and
-    returns the new balance so the page can show it before redirecting
-    back into the app.
+    Called by the web checkout page after Cashfree's checkout reports
+    completion. Cashfree has no client-side signature, so we ask Cashfree
+    directly for the order status; only a PAID order for the right amount
+    credits the wallet. Returns the new balance so the page can show it
+    before redirecting back into the app.
     """
     txn = db.query(models.CreditTransaction).filter(models.CreditTransaction.id == payload.transaction_id).first()
     if not txn:
         raise HTTPException(404, "Transaction not found")
-    if txn.razorpay_order_id != payload.razorpay_order_id:
+    if txn.cashfree_order_id != payload.cashfree_order_id:
         raise HTTPException(400, "Order ID mismatch")
 
-    valid = razorpay_client.verify_payment_signature(
-        order_id=payload.razorpay_order_id,
-        payment_id=payload.razorpay_payment_id,
-        signature=payload.razorpay_signature,
-    )
-    if not valid:
-        txn.status = "failed"
-        db.commit()
-        raise HTTPException(400, "Payment signature verification failed")
+    try:
+        order = await cashfree_client.get_order(txn.cashfree_order_id)
+    except cashfree_client.CashfreeError as e:
+        raise HTTPException(502, str(e))
 
-    txn.razorpay_payment_id = payload.razorpay_payment_id
+    if order.get("order_status") != "PAID" or float(order.get("order_amount", 0)) != float(txn.amount_inr):
+        # Not paid (yet). Don't mark failed: the user may still complete
+        # payment, and the webhook can still credit later.
+        raise HTTPException(400, f"Payment not confirmed (status: {order.get('order_status')})")
+
     user = _credit_wallet_if_needed(db, txn)
 
     return schemas.VerifyPaymentResponse(
@@ -122,41 +137,41 @@ def verify_payment(payload: schemas.VerifyPaymentRequest, db: Session = Depends(
 
 
 @router.post("/webhook")
-async def razorpay_webhook(
+async def cashfree_webhook(
     request: Request,
     db: Session = Depends(get_db),
-    x_razorpay_signature: str = Header(default=""),
+    x_webhook_signature: str = Header(default=""),
+    x_webhook_timestamp: str = Header(default=""),
 ):
     """
-    Server-to-server confirmation from Razorpay. Configure this URL
-    (https://yourdomain.com/credits/webhook) in the Razorpay dashboard,
-    subscribed to the 'payment.captured' event.
+    Server-to-server confirmation from Cashfree. Configure this URL
+    (https://yourdomain.com/credits/webhook) in the Cashfree dashboard
+    (Developers > Webhooks), subscribed to the payment success event.
 
     This is the SOURCE OF TRUTH for crediting the wallet - it covers the
     case where the user's browser closes right after paying, before the
     client-side verify call or redirect can fire.
     """
-    import os
-    webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET", "")
     raw_body = await request.body()
 
-    if webhook_secret:
-        valid = razorpay_client.verify_webhook_signature(raw_body, x_razorpay_signature, webhook_secret)
-        if not valid:
-            raise HTTPException(400, "Invalid webhook signature")
+    if not cashfree_client.CASHFREE_CLIENT_SECRET:
+        raise HTTPException(503, "Cashfree is not configured")
+    if not cashfree_client.verify_webhook_signature(raw_body, x_webhook_timestamp, x_webhook_signature):
+        raise HTTPException(400, "Invalid webhook signature")
 
     payload = await request.json()
-    event = payload.get("event")
-    if event != "payment.captured":
+    event = payload.get("type")
+    if event != "PAYMENT_SUCCESS_WEBHOOK":
         return {"ok": True, "ignored_event": event}
 
-    order_id = payload["payload"]["payment"]["entity"]["order_id"]
-    payment_id = payload["payload"]["payment"]["entity"]["id"]
+    data = payload["data"]
+    order_id = data["order"]["order_id"]
+    payment_id = str(data["payment"]["cf_payment_id"])
 
-    txn = db.query(models.CreditTransaction).filter(models.CreditTransaction.razorpay_order_id == order_id).first()
+    txn = db.query(models.CreditTransaction).filter(models.CreditTransaction.cashfree_order_id == order_id).first()
     if not txn:
         return {"ok": False, "reason": "transaction not found for order"}
 
-    txn.razorpay_payment_id = payment_id
+    txn.cashfree_payment_id = payment_id
     _credit_wallet_if_needed(db, txn)
     return {"ok": True}
