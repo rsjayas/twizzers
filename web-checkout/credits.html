@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Buy Credits</title>
+<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: linear-gradient(180deg, #fff0f4 0%, #ffe4ec 100%);
+    margin: 0; padding: 24px 16px; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    color: #3a1f2b;
+  }
+  .card {
+    background: #fff; border-radius: 18px; padding: 24px;
+    max-width: 420px; width: 100%; box-shadow: 0 8px 24px rgba(209,65,107,0.12);
+    margin-bottom: 16px;
+  }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  .sub { color: #8a6070; font-size: 0.9rem; margin-bottom: 20px; }
+  .pack {
+    display: flex; justify-content: space-between; align-items: center;
+    border: 2px solid #f4dbe4; border-radius: 14px; padding: 16px;
+    margin-bottom: 12px; cursor: pointer; transition: border-color .15s;
+  }
+  .pack:hover, .pack.selected { border-color: #d1416b; background: #fff7f9; }
+  .pack .credits { font-weight: 700; font-size: 1.05rem; }
+  .pack .price { font-weight: 700; color: #d1416b; font-size: 1.1rem; }
+  button#payBtn {
+    width: 100%; margin-top: 8px; background: #d1416b; color: #fff;
+    border: none; padding: 14px; border-radius: 30px; font-size: 1rem;
+    font-weight: 700; cursor: pointer;
+  }
+  button#payBtn:disabled { background: #e9b7c5; cursor: not-allowed; }
+  #status { text-align: center; font-size: 0.9rem; color: #8a6070; min-height: 20px; margin-top: 8px; }
+  .balance-badge {
+    background: #fff; border-radius: 30px; padding: 8px 18px; font-size: 0.85rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06); margin-bottom: 16px;
+  }
+  .success-icon { font-size: 3rem; text-align: center; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+
+<div class="balance-badge" id="balanceBadge">Loading your balance…</div>
+
+<div class="card" id="mainCard">
+  <h1>💌 Buy Credits</h1>
+  <div class="sub">Credits are used to generate AI love stories &amp; poems in the app.</div>
+  <div id="disabledNotice" style="display:none; background:#fff7e6; border:1px solid #f0d9a6; border-radius:12px; padding:14px; margin-bottom:16px; font-size:0.9rem; color:#8a6d1f;">
+    Everything's free for now — no need to buy credits. This page will
+    light up once payments are turned on.
+  </div>
+  <div id="packList"></div>
+  <button id="payBtn" disabled>Select a pack to continue</button>
+  <div id="status"></div>
+</div>
+
+<script>
+// ---- Configuration ----
+// In production, host this page at e.g. https://pay.yourtweezers.com/credits.html
+// and pass user_id + a return deep link as query params from the app.
+const API_BASE = new URLSearchParams(location.search).get('api') || 'http://localhost:8000';
+const USER_ID = new URLSearchParams(location.search).get('user_id');
+// Custom URL scheme the app registers, e.g. tweezers://credits-success
+const APP_RETURN_SCHEME = new URLSearchParams(location.search).get('return_scheme') || 'tweezers://credits-success';
+
+let selectedPack = null;
+let packs = [];
+
+async function init() {
+  if (!USER_ID) {
+    document.getElementById('status').textContent = 'Missing user_id in link — open this page from the app.';
+    return;
+  }
+  await refreshBalance();
+  await loadPacks();
+}
+
+async function refreshBalance() {
+  try {
+    const res = await fetch(`${API_BASE}/credits/balance/${USER_ID}`);
+    const data = await res.json();
+    document.getElementById('balanceBadge').textContent = `Current balance: ${data.credits_balance} credits`;
+  } catch (e) {
+    document.getElementById('balanceBadge').textContent = '';
+  }
+}
+
+async function loadPacks() {
+  const res = await fetch(`${API_BASE}/credits/packs`);
+  packs = await res.json();
+  const list = document.getElementById('packList');
+  list.innerHTML = '';
+  packs.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'pack';
+    div.innerHTML = `<span class="credits">${p.credits} credits</span><span class="price">₹${p.price_inr}</span>`;
+    div.onclick = () => selectPack(p, div);
+    list.appendChild(div);
+  });
+}
+
+function selectPack(pack, el) {
+  document.querySelectorAll('.pack').forEach(d => d.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedPack = pack;
+  const btn = document.getElementById('payBtn');
+  btn.disabled = false;
+  btn.textContent = `Pay ₹${pack.price_inr}`;
+}
+
+async function startPayment() {
+  if (!selectedPack) return;
+  const btn = document.getElementById('payBtn');
+  btn.disabled = true;
+  setStatus('Setting up secure checkout…');
+
+  let orderData;
+  try {
+    const res = await fetch(`${API_BASE}/credits/checkout/create-order`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: USER_ID, credit_pack_id: selectedPack.id }),
+    });
+    if (res.status === 503) {
+      document.getElementById('disabledNotice').style.display = 'block';
+      setStatus('');
+      btn.disabled = true;
+      btn.textContent = 'Not needed right now';
+      return;
+    }
+    if (!res.ok) throw new Error(await res.text());
+    orderData = await res.json();
+  } catch (e) {
+    setStatus('Could not start checkout. Please try again.');
+    btn.disabled = false;
+    return;
+  }
+
+  setStatus('');
+
+  const rzp = new Razorpay({
+    key: orderData.razorpay_key_id,
+    amount: orderData.amount_paise,
+    currency: orderData.currency,
+    name: 'Tweezers Credits',
+    description: `${orderData.credits} credits`,
+    order_id: orderData.razorpay_order_id,
+    handler: async function (response) {
+      await verifyAndRedirect(orderData.transaction_id, response);
+    },
+    modal: {
+      ondismiss: function () {
+        setStatus('Payment cancelled.');
+        btn.disabled = false;
+      },
+    },
+    theme: { color: '#d1416b' },
+  });
+
+  rzp.on('payment.failed', function (resp) {
+    setStatus('Payment failed: ' + (resp.error && resp.error.description ? resp.error.description : 'unknown error'));
+    btn.disabled = false;
+  });
+
+  rzp.open();
+}
+
+async function verifyAndRedirect(transactionId, rzpResponse) {
+  setStatus('Confirming payment…');
+  try {
+    const res = await fetch(`${API_BASE}/credits/checkout/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        transaction_id: transactionId,
+        razorpay_order_id: rzpResponse.razorpay_order_id,
+        razorpay_payment_id: rzpResponse.razorpay_payment_id,
+        razorpay_signature: rzpResponse.razorpay_signature,
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    showSuccessAndRedirect(data);
+  } catch (e) {
+    setStatus('Payment received but confirmation failed — contact support with your payment ID.');
+  }
+}
+
+function showSuccessAndRedirect(data) {
+  document.getElementById('mainCard').innerHTML = `
+    <div class="success-icon">🎉</div>
+    <h1 style="text-align:center">Credits added!</h1>
+    <div class="sub" style="text-align:center">
+      +${data.credits_added} credits · New balance: ${data.new_balance}
+    </div>
+    <button id="payBtn" onclick="returnToApp()">Return to app</button>
+  `;
+  // Auto-redirect after a short pause so the user sees the confirmation.
+  setTimeout(returnToApp, 1800);
+}
+
+function returnToApp() {
+  const url = `${APP_RETURN_SCHEME}?status=success&user_id=${encodeURIComponent(USER_ID)}`;
+  window.location.href = url;
+  // Fallback message in case the app isn't installed / deep link doesn't fire.
+  setTimeout(() => {
+    setStatus('If the app did not open, return to it manually — your credits are saved.');
+  }, 1500);
+}
+
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+document.getElementById('payBtn').addEventListener('click', startPayment);
+init();
+</script>
+</body>
+</html>

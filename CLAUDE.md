@@ -4,14 +4,24 @@ This file provides guidance to Claude Code when working in this repository.
 
 ## Project
 
-twizzers is a project for people who want to express gratitude and feelings to someone they love, and to present something to that person (see `README.md`).
+twizzers (originally scaffolded under the name "Tweezers"; see `SCAFFOLD.md` for the original write-up) lets people express gratitude/feelings to a loved one: sign up, write or AI-generate a poem, pick an animated template and music, and get a shareable creation with a public link.
 
-## Current state
+## Layout
 
-The repository only contains `README.md`. There is no source code, build system, dependency manifest, tests, or lint configuration yet, so there are no build/test/lint commands to document.
+- `backend/` - FastAPI + SQLAlchemy + Postgres API. `app/main.py` registers routers in `app/routers/` (auth, poems, templates, music, creations, credits). `app/ai.py` calls the Anthropic API for poems (falls back to demo text without a key). `app/razorpay_client.py` handles Razorpay orders/signature verification.
+- `frontend-demo/index.html` - plain HTML/JS page exercising the full create flow against the API.
+- `web-checkout/credits.html` - standalone credit-purchase page, hosted outside the app on purpose (avoids Google Play billing).
+- `docker-compose.yml` - Postgres + backend.
 
-## Guidance
+## Commands
 
-- When the stack is chosen and code is added, update this file with the build, test, and lint commands, plus a short architecture overview.
-- Keep the tone of user-facing content warm and personal, in line with the project's purpose.
+- Run everything: `cp backend/.env.example backend/.env && docker compose up --build`, then `docker compose exec backend python seed_data.py`. API docs at `http://localhost:8000/docs`.
+- Run without Docker: in `backend/`, `pip install -r requirements.txt`, set `DATABASE_URL`, then `uvicorn app.main:app --reload` and `python seed_data.py`.
+- There are no tests or lint config yet.
+
+## Notes
+
+- `PAYMENTS_ENABLED` (default `false`) gates the whole credits system; while off, poem generation is free and checkout returns 503.
+- Stubbed: video rendering (creations are marked ready with a placeholder URL), auth (no OTP/password), placeholder template/music URLs.
+- Never commit `backend/.env` or real API keys.
 - Develop on the `claude/epic-gates-5rqbqc` branch.

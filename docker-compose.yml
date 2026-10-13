@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tweezers
+      POSTGRES_PASSWORD: tweezers
+      POSTGRES_DB: tweezers
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://tweezers:tweezers@db:5432/tweezers
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+      COST_PER_STORY_CREDITS: ${COST_PER_STORY_CREDITS:-5}
+      PAYMENTS_ENABLED: ${PAYMENTS_ENABLED:-false}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+
+volumes:
+  pgdata:

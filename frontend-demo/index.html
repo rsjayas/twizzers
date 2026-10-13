@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Tweezers — Create Flow Demo</title>
+<style>
+  body { font-family: -apple-system, Segoe UI, sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; color: #2a1a2f; background: #fff7fa; }
+  h1 { font-size: 1.4rem; }
+  .step { background: #fff; border: 1px solid #f0d9e3; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  label { display: block; margin-top: 10px; font-size: 0.9rem; font-weight: 600; }
+  input, select, textarea { width: 100%; padding: 8px; margin-top: 4px; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
+  button { margin-top: 14px; background: #d1416b; color: white; border: none; padding: 10px 18px; border-radius: 20px; cursor: pointer; font-weight: 600; }
+  button:hover { background: #b83459; }
+  .variant { border: 1px solid #eee; border-radius: 8px; padding: 10px; margin-top: 8px; cursor: pointer; }
+  .variant:hover { border-color: #d1416b; }
+  .variant.selected { border-color: #d1416b; background: #fff0f4; }
+  pre { white-space: pre-wrap; font-family: inherit; }
+  #log { font-size: 0.75rem; color: #888; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+
+<h1>💌 Tweezers — Create Flow Demo</h1>
+<p style="font-size:0.85rem;color:#888">Point this at your local backend (default http://localhost:8000).</p>
+
+<div class="step">
+  <label>API base URL</label>
+  <input id="apiBase" value="http://localhost:8000" />
+</div>
+
+<div class="step">
+  <h3>1. Sign up (demo)</h3>
+  <label>Name</label>
+  <input id="userName" value="Demo User" />
+  <label>Phone or email</label>
+  <input id="userContact" value="demo@example.com" />
+  <button onclick="signup()">Continue</button>
+  <p id="userStatus"></p>
+</div>
+
+<div class="step">
+  <h3>2. Generate a poem with AI</h3>
+  <label>Occasion</label>
+  <select id="occasion">
+    <option value="anniversary">Anniversary</option>
+    <option value="just_because">Just because</option>
+    <option value="apology">Apology</option>
+    <option value="long_distance">Long distance</option>
+  </select>
+  <label>Tone</label>
+  <select id="tone">
+    <option value="deeply_romantic">Deeply romantic</option>
+    <option value="playful">Playful</option>
+    <option value="nostalgic">Nostalgic</option>
+  </select>
+  <label>Recipient nickname</label>
+  <input id="nickname" value="Jaan" />
+  <label>A shared memory (detail 1)</label>
+  <input id="detail1" value="our first rainy-day coffee" />
+  <label>Something you love about them (detail 2)</label>
+  <input id="detail2" value="the way they laugh at bad jokes" />
+  <button onclick="generatePoem()">Generate 3 variants</button>
+  <div id="variants"></div>
+</div>
+
+<div class="step">
+  <h3>3. Pick template + music</h3>
+  <button onclick="loadTemplatesAndMusic()">Load options</button>
+  <div id="templateList"></div>
+  <div id="musicList"></div>
+</div>
+
+<div class="step">
+  <h3>4. Create & preview</h3>
+  <button onclick="createCreation()">Create video</button>
+  <div id="creationResult"></div>
+</div>
+
+<div class="step">
+  <h3>Log</h3>
+  <div id="log"></div>
+</div>
+
+<script>
+let state = { userId: null, poemId: null, selectedVariantId: null, templateId: null, musicId: null };
+
+function apiBase() { return document.getElementById('apiBase').value.replace(/\/$/, ''); }
+function log(msg) {
+  const el = document.getElementById('log');
+  el.textContent = new Date().toLocaleTimeString() + '  ' + msg + '\n' + el.textContent;
+}
+
+async function signup() {
+  const name = document.getElementById('userName').value;
+  const contact = document.getElementById('userContact').value;
+  const body = contact.includes('@') ? { email: contact, name } : { phone: contact, name };
+  const res = await fetch(apiBase() + '/auth/signup', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  state.userId = data.id;
+  document.getElementById('userStatus').textContent = 'Signed up as ' + data.id;
+  log('Signup OK: ' + data.id);
+}
+
+async function generatePoem() {
+  if (!state.userId) { alert('Sign up first'); return; }
+  const payload = {
+    user_id: state.userId,
+    occasion: document.getElementById('occasion').value,
+    tone: document.getElementById('tone').value,
+    recipient_nickname: document.getElementById('nickname').value,
+    detail_1: document.getElementById('detail1').value,
+    detail_2: document.getElementById('detail2').value,
+  };
+  const res = await fetch(apiBase() + '/poems/generate', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+  state.poemId = data.id;
+  const container = document.getElementById('variants');
+  container.innerHTML = '';
+  data.variants.forEach(v => {
+    const div = document.createElement('div');
+    div.className = 'variant';
+    div.innerHTML = '<pre>' + v.variant_text + '</pre>';
+    div.onclick = () => selectVariant(v.id, div);
+    container.appendChild(div);
+  });
+  log('Generated ' + data.variants.length + ' poem variants for poem ' + data.id);
+}
+
+async function selectVariant(variantId, el) {
+  document.querySelectorAll('.variant').forEach(d => d.classList.remove('selected'));
+  el.classList.add('selected');
+  const res = await fetch(apiBase() + '/poems/' + state.poemId + '/select-variant', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ variant_id: variantId })
+  });
+  const data = await res.json();
+  state.selectedVariantId = variantId;
+  log('Selected + finalized poem: ' + data.status);
+}
+
+async function loadTemplatesAndMusic() {
+  const t = await (await fetch(apiBase() + '/templates/')).json();
+  const m = await (await fetch(apiBase() + '/music/')).json();
+  const tDiv = document.getElementById('templateList');
+  tDiv.innerHTML = '<b>Templates</b>';
+  t.forEach(tpl => {
+    const d = document.createElement('div');
+    d.className = 'variant';
+    d.textContent = tpl.name + ' (' + tpl.mood_tags.join(', ') + ')';
+    d.onclick = () => { state.templateId = tpl.id; document.querySelectorAll('#templateList .variant').forEach(x=>x.classList.remove('selected')); d.classList.add('selected'); };
+    tDiv.appendChild(d);
+  });
+  const mDiv = document.getElementById('musicList');
+  mDiv.innerHTML = '<b>Music</b>';
+  m.forEach(track => {
+    const d = document.createElement('div');
+    d.className = 'variant';
+    d.textContent = track.title + ' (' + track.mood_tags.join(', ') + ')';
+    d.onclick = () => { state.musicId = track.id; document.querySelectorAll('#musicList .variant').forEach(x=>x.classList.remove('selected')); d.classList.add('selected'); };
+    mDiv.appendChild(d);
+  });
+  log('Loaded ' + t.length + ' templates, ' + m.length + ' tracks');
+}
+
+async function createCreation() {
+  if (!state.poemId || !state.templateId || !state.musicId) { alert('Complete steps 2-3 first'); return; }
+  const res = await fetch(apiBase() + '/creations/', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: state.userId, poem_id: state.poemId, template_id: state.templateId, music_track_id: state.musicId })
+  });
+  const data = await res.json();
+  document.getElementById('creationResult').innerHTML =
+    '<p>Status: ' + data.status + '</p>' +
+    '<p>Share link slug: ' + data.share_link_slug + '</p>' +
+    '<p>Video URL (placeholder): ' + data.rendered_video_url + '</p>';
+  log('Creation ready: ' + data.id);
+}
+</script>
+</body>
+</html>
