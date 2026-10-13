@@ -134,7 +134,7 @@ Alembic tracks database structure changes in versioned files, like Git for the s
 
 Alternative: everything on AWS Mumbai (ap-south-1) for best India latency, at more setup effort and usually higher cost.
 
-**Before going live:** keep secrets in the host's environment settings, tighten CORS (currently allows all origins), replace the signup stub with real auth, and use a public HTTPS domain for the Razorpay webhook. Check current pricing and free tiers.
+**Before going live:** keep secrets in the host's environment settings, tighten CORS (currently allows all origins), replace the signup stub with real auth, and use a public HTTPS domain for the payment webhook. Check current pricing and free tiers.
 
 ---
 
@@ -142,7 +142,7 @@ Alternative: everything on AWS Mumbai (ap-south-1) for best India latency, at mo
 
 `tweezers.zip` contains:
 
-- `backend/` — FastAPI + PostgreSQL API: auth stub, poems (write / AI-generate / pick variant), templates, music, creations with public share links, credits and Razorpay checkout (switched off), seed script, Dockerfile
+- `backend/` — FastAPI + PostgreSQL API: auth stub, poems (write / AI-generate / pick variant), templates, music, creations with public share links, credits and Cashfree checkout (switched off), seed script, Dockerfile
 - `frontend-demo/index.html` — browser page that walks through the create flow
 - `web-checkout/credits.html` — standalone credits purchase page
 - `docker-compose.yml` — Postgres + backend
