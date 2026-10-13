@@ -1,2 +1,2 @@
 # twizzers
-This project is for the peoples who are in rekationship and want to express their fellings and want to present some thing to their beloved one
+This project is for the peoples who belogs to some on else and want to express their gratitude/fellings and want to present some thing to their beloved one
