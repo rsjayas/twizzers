@@ -12,6 +12,7 @@ twizzers (originally scaffolded under the name "Tweezers"; see `SCAFFOLD.md` for
 - `frontend-demo/index.html` - plain HTML/JS page exercising the full create flow against the API.
 - `web-checkout/credits.html` - standalone credit-purchase page, hosted outside the app on purpose (avoids Google Play billing).
 - `docker-compose.yml` - Postgres + backend.
+- `docs/PROJECT_DISCUSSION.md` - product decisions, roadmap, stack, hosting plan and future ideas (e.g. AI image generation). Read it for context and keep it updated when decisions change.
 
 ## Commands
 
