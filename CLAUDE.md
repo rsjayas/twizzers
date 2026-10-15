@@ -26,6 +26,6 @@ twizzers (originally scaffolded under the name "Tweezers"; see `SCAFFOLD.md` for
 - `PAYMENTS_ENABLED` (default `false`) gates the whole credits system; while off, poem generation is free and checkout returns 503.
 - Stubbed: video rendering (creations are marked ready with a placeholder URL), auth (no OTP/password), placeholder template/music URLs.
 - Payments use Cashfree (originally Razorpay in the scaffold). Env vars: `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET`, `CASHFREE_ENV` (`sandbox`|`production`), `CASHFREE_NOTIFY_URL`. The Cashfree client was written without access to Cashfree's docs and has not been run against the sandbox.
-- Decided stack: React Native (Expo) for the app, Firebase Auth (phone OTP) for login.
+- Decided stack: React Native (Expo) for the app, Firebase Auth (phone OTP) for login, Neon (managed Postgres) for the production database.
 - Never commit `backend/.env` or real API keys.
 - Develop on the `claude/epic-gates-5rqbqc` branch.

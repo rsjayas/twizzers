@@ -38,7 +38,7 @@ Key advice: validate the "AI poem + animation + share" loop first, before cards,
 |---|---|
 | Mobile app | **React Native (Expo, TypeScript)** - decided; scaffold in `mobile/`. Chosen over Flutter and native Kotlin: one codebase for Android + iOS, shares skills with the React-based Remotion render service, good JS support for Firebase/Cloudflare. Test Instagram Stories sharing early with a small prototype. |
 | Backend | Python **FastAPI** (built) |
-| Database | **PostgreSQL** via SQLAlchemy (built); Redis planned for caching/sessions, not added yet |
+| Database | **PostgreSQL** via SQLAlchemy (built), hosted on **Neon** (decided; chosen over Supabase because it's plain Postgres and auth/storage are already covered by Firebase and R2); Redis planned for caching/sessions, not added yet |
 | AI poem generation | Claude API; 3 variants per request, user can edit/regenerate |
 | Animation | Pre-built template animations (Lottie/Rive) for the MVP, not generative video |
 | Video rendering | Planned: **Remotion** (React-based) or FFmpeg, as a separate render service |
@@ -126,7 +126,7 @@ Alembic tracks database structure changes in versioned files, like Git for the s
 | Piece | Suggested host |
 |---|---|
 | Backend API | Render, Railway or Fly.io (check for a region near India) |
-| Database | Neon or Supabase (managed Postgres) |
+| Database | **Neon** (managed Postgres, decided). Use a region close to the API host and India users; set `DATABASE_URL` with `?sslmode=require`. Scale-to-zero adds a cold-start delay: fine for testing, disable on a paid plan before launch. Re-check pricing/free-tier limits. |
 | Videos and images | Cloudflare R2 + CDN |
 | Credits checkout page | Cloudflare Pages (static file, own domain such as `pay.yourdomain.com`) |
 | Video rendering | Separate worker server, or Remotion Lambda on AWS |
