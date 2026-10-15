@@ -36,7 +36,7 @@ Key advice: validate the "AI poem + animation + share" loop first, before cards,
 
 | Area | Choice |
 |---|---|
-| Mobile app | React Native or Flutter (not yet started) |
+| Mobile app | **React Native (Expo, TypeScript)** - decided; scaffold in `mobile/`. Chosen over Flutter and native Kotlin: one codebase for Android + iOS, shares skills with the React-based Remotion render service, good JS support for Firebase/Cloudflare. Test Instagram Stories sharing early with a small prototype. |
 | Backend | Python **FastAPI** (built) |
 | Database | **PostgreSQL** via SQLAlchemy (built); Redis planned for caching/sessions, not added yet |
 | AI poem generation | Claude API; 3 variants per request, user can edit/regenerate |
@@ -45,7 +45,7 @@ Key advice: validate the "AI poem + animation + share" loop first, before cards,
 | Media storage + CDN | **Cloudflare R2 + CDN** (zero egress fees suit a share-heavy app) |
 | Music | Licensed library (Epidemic Sound / Artlist); do not use unlicensed popular songs |
 | Payments | Cashfree (was Razorpay in the first scaffold) |
-| Auth | Currently a stub; replace with Firebase Auth or Clerk (real OTP) before launch |
+| Auth | **Firebase Auth** (phone OTP) - decided. Currently a stub in `backend/app/routers/auth.py`; backend should verify Firebase ID tokens. |
 | Analytics | PostHog or Mixpanel, tracking the create → share funnel |
 
 ### Data model (Phase 1)
@@ -158,8 +158,8 @@ Alternative: everything on AWS Mumbai (ap-south-1) for best India latency, at mo
 
 1. Add **Alembic** and generate the first migration.
 2. Build the **render service** (Remotion) so creations produce a real video.
-3. Start the **mobile app** (React Native or Flutter) against the existing API.
-4. Replace the auth stub with real OTP login.
+3. Build the **mobile app** (React Native / Expo, scaffold done in `mobile/`) against the existing API.
+4. Replace the auth stub with Firebase phone-OTP login (verify Firebase ID tokens in the backend).
 5. Add deployment config (API host, Neon, Cloudflare).
 6. Redo the **Tweezers logo/brand**; check trademark and domain.
 7. Phase 0 validation: landing page, waitlist, hand-made samples.
