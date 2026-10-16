@@ -1,6 +1,6 @@
 # Tweezers — Project Discussion Log
 
-A running record of the product idea, decisions, and answers from the planning conversation. Update this file as decisions change.
+A running record of the product idea, decisions, and answers from the planning conversation. Update this file as decisions change. For the service-by-task table, system diagram and working flows see `ARCHITECTURE.md`.
 
 _Last updated: 13 Oct 2026 (payments switched to Cashfree; image-generation notes added)_
 

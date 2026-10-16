@@ -13,6 +13,8 @@ twizzers (originally scaffolded under the name "Tweezers"; see `SCAFFOLD.md` for
 - `web-checkout/credits.html` - standalone credit-purchase page, hosted outside the app on purpose (avoids Google Play billing).
 - `mobile/` - React Native app (Expo, TypeScript), currently the blank template. App scheme is `tweezers`. Check the versioned Expo docs before writing Expo code (see `mobile/AGENTS.md`); add packages with `npx expo install`. Typecheck with `npx tsc --noEmit`.
 - `docker-compose.yml` - Postgres + backend.
+- `render-service/` - Remotion (Node) service that turns a poem into a 9:16 MP4. `src/remotion/` is the composition (`PoemVideo`). Remotion docs were not reachable from the sandbox; render tested with Chromium at `/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
+- `docs/ARCHITECTURE.md` - which service is used for each task (AI and web services), system diagram, working flows, env vars. Keep it updated when a service or flow changes.
 - `docs/PROJECT_DISCUSSION.md` - product decisions, roadmap, stack, hosting plan and future ideas (e.g. AI image generation). Read it for context and keep it updated when decisions change.
 
 ## Commands
