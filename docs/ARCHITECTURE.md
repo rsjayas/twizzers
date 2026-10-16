@@ -313,3 +313,17 @@ Our database is tiny: poems, users, creations and logs are text, so 10,000 poems
 | Growth, always on at 1 CU | 730 CU-hours | about $77 |
 
 Scale-to-zero saves money but the first request after idle waits for the database to wake up; turn it off before launch if that delay matters. Keep the API in a region close to Neon (Singapore is available on AWS; a Mumbai region was not confirmed).
+
+### Aurora Serverless v2 (PostgreSQL) instead of Neon (16 Oct 2026, third-party prices, unverified)
+
+Reported rates: about $0.12 per ACU-hour in US regions, $0.20 in Tokyo (a Mumbai price was not found, expect more than the US rate); storage about $0.10 per GB-month (one source says $0.225) and about $0.20 per million I/O requests on standard storage. Capacity floor is 0.5 ACU, about $44 a month always on at $0.12 (about $58 at $0.16). AWS reportedly added scale to zero (auto-pause) in November 2024 on certain PostgreSQL versions; resuming takes about 15 seconds and storage is still billed. Verify on the AWS pricing page and in the Pricing Calculator for Asia Pacific (Mumbai).
+
+| Case | Aurora Serverless v2 | Neon |
+|---|---|---|
+| Prototype | about $44+ if always on at the floor; near storage-only if auto-pause is available and used | $0 |
+| Early launch | about $44-60+ (0.5 ACU always on) plus storage and I/O | about $0-20 |
+| Growth (about 4 GB of memory, 2 ACU assumed) | about $175 at $0.12 (more in Mumbai) | about $39-77 |
+
+Other catches: the database lives in a private network (VPC), so the API must run on AWS or connect through extra networking, which can add costs such as a NAT gateway or load balancer (unverified); resume delay after auto-pause is longer than Neon's.
+
+Verdict: stay on Neon for launch. Aurora makes sense only if everything else moves to AWS and you want its backups, high availability and account integration; at our size it is several times more expensive.
