@@ -220,7 +220,7 @@ Written 16 Oct 2026 from third-party pricing summaries, not the vendors' own pri
 - Early launch: 1,000 new users a month, 3,000 AI poems, 1,500 videos.
 - Growth: 5,000 new users a month (about 10,000 active), 30,000 AI poems, 15,000 videos.
 - A poem request sends about 200 tokens and returns about 300 to 450, so roughly $0.008 per request on `claude-sonnet-4-6` at $3 input / $15 output per million tokens (3 variants per request, `max_tokens` 800 so at most about $0.013).
-- A finished video is about 0.7 MB (measured on a 13-second test render). Rendering takes tens of seconds of one CPU per video (unmeasured on a real host).
+- A finished video is about 0.7 MB (measured on a 13-second test render). Rendering was measured (see the measured sizing section at the end): about 6 minutes of one CPU per 22-second video, roughly 360 CPU-seconds, and a 1.6 GB memory peak.
 - Each new user needs about 1.3 SMS verifications.
 
 ### By service
@@ -228,13 +228,13 @@ Written 16 Oct 2026 from third-party pricing summaries, not the vendors' own pri
 |---|---|---|---|---|
 | API + admin host (Render) | Starter $7 (512 MB), Standard $25 (2 GB) | $0-7 | $7 | $25 |
 | Render workspace plan | Hobby $0, Pro about $25 (unverified) | $0 | $0 | about $25 |
-| Render service host (needs about 2 GB for Chromium) | Standard $25, Pro $85 | $0 (run locally) | $25 | $50-85 |
+| Render service host (1.6 GB peak memory, about 6 CPU-minutes per video) | Standard $25 (2 GB, 1 CPU: tight on memory and slow), Pro $85 (4 GB, 2 CPU) | $0 (run locally) | $25-85 | $85-170 |
 | Database (Neon) | about $0.106 per compute-hour (1 CU = 1 vCPU, 4 GB) + $0.35 per GB-month; free tier 100 CU-hours | $0 | $0-20 | $20-80 |
 | Videos (Cloudflare R2) | $0.015 per GB-month, free egress, 10 GB free | $0 | $0 | about $1 |
 | AI poems (Claude API) | about $0.008 per request | about $1 | about $24 | about $240 |
 | Phone login SMS (Firebase, India) | about $0.06-0.07 per SMS (10 a day free); paid Blaze plan needed | $0 (test numbers) | about $70 | about $435 |
 | Domain | about $12 a year | $1 | $1 | $1 |
-| **Total** | | **about $2-10 (Rs 200-900)** | **about $130 (Rs 11,500)** | **about $800-890 (Rs 70,000-78,000)** |
+| **Total** | | **about $2-10 (Rs 200-900)** | **about $130-210 (Rs 11,500-18,500)** | **about $830-980 (Rs 73,000-86,000)** |
 
 One-time: Google Play developer account (about $25), Apple Developer account ($99 a year, only when you ship on iPhone). Both are unverified.
 
@@ -275,8 +275,8 @@ The render service needs 2 GB or more and is billed separately (see the table ab
 | AWS option | Fits the API | Fits the render service | Rough monthly cost (early launch) | Catch |
 |---|---|---|---|---|
 | **Lightsail containers** | Yes, simplest. Nano $7 (512 MB, 0.25 vCPU), Micro about $10, Small about $15, Medium $40 (only Nano and the Medium price are confirmed by AWS docs); includes a load balancer, HTTPS and 500 GB transfer | Only Medium or larger, and CPU is limited, so renders are slow | API about $10 + render $15-40 = about $25-50 | Small CPUs; no on-demand rendering |
-| **ECS on Fargate** | Yes, but needs more setup (VPC, load balancer, IAM, logs) | Yes; best used as on-demand tasks per render (needs code to start tasks) | API about $18 (0.5 vCPU, 1 GB at $0.04048 per vCPU-hour and $0.004445 per GB-hour) + load balancer about $16-22 + public IPv4 about $4 = about $40; render always on (2 vCPU, 4 GB) about $72, or on demand about $3 at 1,500 renders | Load balancer and IP charges; NAT gateway if you use private subnets; most work |
-| **Lambda** | Possible with an adapter, but cold starts and database connections need care; about $0-5 | Remotion has a Lambda renderer (`renderMediaOnLambda`) that renders in parallel, but it is a different code path from what we built | API about $0-5; render AWS compute plus the Remotion licence | Needs rewrites; licence minimum of $100 a month if over 3 people |
+| **ECS on Fargate** | Yes, but needs more setup (VPC, load balancer, IAM, logs) | Yes; best used as on-demand tasks per render (needs code to start tasks) | API about $18 (0.5 vCPU, 1 GB at $0.04048 per vCPU-hour and $0.004445 per GB-hour) + load balancer about $16-22 + public IPv4 about $4 = about $40; render always on (2 vCPU, 4 GB) about $72, or on demand about $0.006 per video (about $9 at 1,500 renders, $90 at 15,000) | Load balancer and IP charges; NAT gateway if you use private subnets; most work |
+| **Lambda** | Possible with an adapter, but cold starts and database connections need care; about $0-5 | Remotion has a Lambda renderer (`renderMediaOnLambda`) that renders in parallel, but it is a different code path from what we built | API about $0-5; render about $0.011 each (4 GB for about 170 seconds), so about $16 at 1,500 renders and about $175 at 15,000, plus the Remotion licence | Needs rewrites; licence minimum of $100 a month if over 3 people |
 
 Simplest AWS setup: API on Lightsail Micro, render service on Lightsail Medium (about $50 a month together, against about $32 on Render). Revisit Fargate or Remotion Lambda only at volume. AWS is not cheaper or simpler than Render or Railway at this size; the reasons to pick it are credits, a Mumbai region or wanting everything in one cloud account.
 
@@ -286,7 +286,7 @@ Cloud Run runs a container and bills per second of use, and Mumbai (`asia-south1
 
 | GCP option | API + admin | Render service | Rough monthly cost |
 |---|---|---|---|
-| **Cloud Run** (scales to zero) | Fits. Early launch fits inside the free allowance (about $0); growth about $10. Keeping one instance warm to avoid cold starts is about $10-15 more (idle rate from a third-party source) | Fits only after a code change (see below). About $0.005 per render at 1 minute of 2 vCPU and 4 GiB, so about $0-8 at 1,500 renders and about $65 at 15,000 | Early launch about $0-20, growth about $75-80 |
+| **Cloud Run** (scales to zero) | Fits. Early launch fits inside the free allowance (about $0); growth about $10. Keeping one instance warm to avoid cold starts is about $10-15 more (idle rate from a third-party source) | Fits only after a code change (see below). About $0.015 per render (measured: about 3 minutes of 2 vCPU and 4 GiB), so about $15-20 at 1,500 renders and about $210 at 15,000 | Early launch about $15-40, growth about $220-230 |
 | **Compute Engine VM** (one machine running our docker compose) | Fits unchanged | Fits unchanged | e2-medium (2 vCPU, 4 GB) about $29, e2-standard-2 (2 vCPU, 8 GB) about $59 in Mumbai; another source says about $48 and $58, so check |
 | **GKE Autopilot** | Overkill at this size | Overkill | Not priced |
 
@@ -335,9 +335,9 @@ Rates: Lambda about $0.20 per million requests and $0.0000166667 per GB-second (
 | Piece | How it would run | Rough monthly cost |
 |---|---|---|
 | API + admin | FastAPI behind the Mangum adapter in a Lambda container image, in front of API Gateway | Early launch about $0-2 (inside the free tier plus logs). Growth about $2-6 (1 million requests, API Gateway about $1, logs). |
-| Rendering | A Lambda that the API starts asynchronously; runs to completion (no CPU throttling like Cloud Run), then uploads to R2 and calls back | About $0.004 per render at 4 GB for 60 seconds (240 GB-seconds). 1,500 renders about $0-6; 15,000 renders about $53, plus the Remotion licence if the team is over 3 people |
+| Rendering | A Lambda that the API starts asynchronously; runs to completion (no CPU throttling like Cloud Run), then uploads to R2 and calls back | About $0.011 per render (4 GB for about 170 seconds, about 680 GB-seconds). 1,500 renders about $16 after the free tier; 15,000 about $175, plus the Remotion licence if the team is over 3 people |
 | Database | Neon, public over the internet, so the functions need no VPC and no NAT gateway | See the Neon section |
-| **Total** | | **Early launch about $0-10, growth about $55-65** (cheapest of all the options at low volume) |
+| **Total** | | **Early launch about $0-20, growth about $175-185** |
 
 What it takes:
 1. **Limits.** API Gateway cuts requests at 30 seconds (cannot be raised), and `ai.py` waits up to 30 seconds for Claude, so lower that wait to about 20 seconds. Lambda's own limits (15 minutes, up to 10 GB memory) are from memory.
@@ -347,3 +347,27 @@ What it takes:
 5. **Other changes.** Run migrations as a deploy step; serve the admin UI and music from storage (S3/CloudFront, R2 or Cloudflare Pages) instead of the API; the admin login throttle is per instance, so use API Gateway throttling or a shared store; new AWS accounts may start with low concurrency limits (unverified); an infrastructure tool (SAM, CDK or Terraform) and secrets storage are needed.
 
 Verdict: cheapest and no servers to manage, but the most engineering work and the most unknowns (cold starts, Chromium on Lambda). Not recommended for launch; consider it later if idle cost matters.
+
+## 7. Measured sizing (16 Oct 2026, this sandbox)
+
+Measured with the real services against a local Postgres. The sandbox has 4 CPUs and software rendering (no GPU), so a real host will differ; treat these as the best numbers available, not guarantees.
+
+| Service | Memory | Notes |
+|---|---|---|
+| API + admin (`uvicorn`) | about 87 MB idle, 91 MB after 120 requests (including poem generation with the demo fallback) | Fits the smallest container. Poem requests mostly wait on Claude, so CPU use is low. |
+| Render service | about 250 MB idle (bundle loaded), **peak about 1.6 GB while rendering** | Needs at least 2 GB; 4 GB is comfortable. |
+
+Render time for an 8-line poem (a 22-second, 1080x1920 video, about 1.5 MB):
+
+| CPUs | Wall time |
+|---|---|
+| 4 | 123 seconds |
+| 1 (pinned with `taskset`) | 357 seconds (about 6 minutes) |
+| 0.25 (the Lightsail Micro size) | not measured; roughly 4 times slower than 1 CPU, so about 24 minutes, which is unusable |
+
+So one video costs roughly 360 CPU-seconds, and the per-render prices above use that. Video length scales with the poem (about 1.5 + 2.2 seconds per line + 2.5), so a 4-line poem renders in roughly 60% of that time.
+
+What this means:
+- **Container sizes:** API 0.25 vCPU and 0.5 GB is enough. The renderer needs 2 GB or more and CPU matters more than anything: at 1 vCPU it takes about 6 minutes, at 2 vCPU about 3 minutes.
+- **Throughput:** one 1-vCPU worker makes about 10 videos an hour (about 7,000 a month at 100% busy, with long waits at busy times). One 2-vCPU worker makes about 20 an hour. Growth volume needs several workers or on-demand parallel tasks.
+- **Ways to cut the cost and the wait** (not done yet): render at 720x1280 instead of 1080x1920, lower the frame rate, or add more CPUs per job.
