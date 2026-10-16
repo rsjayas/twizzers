@@ -399,3 +399,16 @@ Everything we call from the servers is on the public internet (Neon, the Claude 
 | Lambda | API Gateway or a function URL replaces it | Not needed if the functions are not attached to a VPC; attaching one (needed for private databases like Aurora) means they lose internet access without a NAT gateway or endpoints |
 
 Rules of thumb: keep servers in public subnets with strict security groups (only 80/443 inbound), and avoid private subnets unless you need them, because NAT gateways and VPC endpoints add fixed monthly cost.
+
+### DynamoDB instead of Postgres (16 Oct 2026, third-party prices, unverified)
+
+Reported prices (US East): on-demand writes $0.625-1.25 per million and reads $0.125-0.25 per million (sources disagree by 2x), storage $0.25 per GB-month with 25 GB free. At our volumes (about 100,000 writes and 1 million reads a month at early launch, about 10 times that at growth) the bill would be about $0-1 at early launch and about $2-6 at growth, against Neon's $0-20 and $20-80. Global secondary indexes, if we add them for lookups, multiply write cost.
+
+It would work technically, and it suits an all-Lambda design (no connections to manage, no VPC). But the code is built for a relational database:
+- Everything in `backend/` (models, SQLAlchemy queries, Alembic migrations, 23 tests) would be rewritten around DynamoDB access patterns and indexes; the admin dashboard too.
+- No joins: poem + creation + template + music lookups become several reads or duplicated data.
+- The admin dashboard needs counts, sums per day, text search on name/phone/email and paging; DynamoDB has none of these built in (scans cost money, search needs another service).
+- The credits wallet needs safe all-or-nothing updates; possible with conditional writes and transactions, but easier to get wrong than in SQL.
+- No migrations tool; schema changes are manual. Reporting needs exports.
+
+Verdict: stay on Postgres (Neon). The saving is a few tens of dollars at growth and nothing at launch, against a full rewrite. DynamoDB is a good fit for small key-value jobs (such as a shared rate-limit or session store) if needed later.
