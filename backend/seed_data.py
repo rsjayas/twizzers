@@ -1,13 +1,14 @@
 """
 Run with: python seed_data.py
 Populates templates and music_tracks with starter content so the
-create flow is testable end-to-end. Replace URLs with your real
-Lottie/Rive files and licensed audio once you have them.
+create flow is testable end-to-end. Music is three original synthesised
+placeholder tracks in static/music/ (see generate.sh); replace them and the
+placeholder template URLs with real Lottie/Rive files and licensed audio.
 """
-from app.database import SessionLocal, Base, engine
+from app.database import SessionLocal
 from app import models
 
-Base.metadata.create_all(bind=engine)
+# Tables come from Alembic migrations (`alembic upgrade head`), not from this script.
 db = SessionLocal()
 
 templates = [
@@ -30,15 +31,15 @@ templates = [
 ]
 
 tracks = [
-    dict(title="Soft Piano Love", artist="Licensed Library", license_source="epidemic_sound",
-         mood_tags=["deeply_romantic"], audio_file_url="https://cdn.example.com/music/soft_piano_love.mp3",
-         duration_seconds=45),
-    dict(title="Playful Strings", artist="Licensed Library", license_source="epidemic_sound",
-         mood_tags=["playful"], audio_file_url="https://cdn.example.com/music/playful_strings.mp3",
-         duration_seconds=40),
-    dict(title="Nostalgic Guitar", artist="Licensed Library", license_source="artlist",
-         mood_tags=["nostalgic"], audio_file_url="https://cdn.example.com/music/nostalgic_guitar.mp3",
-         duration_seconds=50),
+    dict(title="Soft Piano Love", artist="Tweezers (synth placeholder)", license_source="placeholder_synth",
+         mood_tags=["deeply_romantic"], audio_file_url="/static/music/soft_piano_love.mp3",
+         duration_seconds=32),
+    dict(title="Playful Strings", artist="Tweezers (synth placeholder)", license_source="placeholder_synth",
+         mood_tags=["playful"], audio_file_url="/static/music/playful_strings.mp3",
+         duration_seconds=32),
+    dict(title="Nostalgic Guitar", artist="Tweezers (synth placeholder)", license_source="placeholder_synth",
+         mood_tags=["nostalgic"], audio_file_url="/static/music/nostalgic_guitar.mp3",
+         duration_seconds=32),
 ]
 
 for t in templates:

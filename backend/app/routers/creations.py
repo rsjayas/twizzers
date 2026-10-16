@@ -25,12 +25,20 @@ RENDER_SECRET = os.getenv("RENDER_SECRET", "")
 BACKEND_PUBLIC_URL = os.getenv("BACKEND_PUBLIC_URL", "http://localhost:8000").rstrip("/")
 
 
+def _absolute(url: str | None) -> str | None:
+    """Relative asset paths (e.g. /static/music/x.mp3) are served by this API; the
+    render service needs a full URL that it can reach."""
+    if url and url.startswith("/"):
+        return f"{BACKEND_PUBLIC_URL}{url}"
+    return url
+
+
 async def _dispatch_render(creation: models.Creation, poem: models.Poem, template, music) -> None:
     job = {
         "job_id": creation.id,
         "poem": poem.content,
         "mood_tags": (template.mood_tags if template else None) or [],
-        "music_url": music.audio_file_url if music else None,
+        "music_url": _absolute(music.audio_file_url) if music else None,
         "callback_url": f"{BACKEND_PUBLIC_URL}/creations/internal/{creation.id}/render-result",
     }
     async with httpx.AsyncClient(timeout=15) as client:

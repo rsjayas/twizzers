@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   db:
     image: postgres:16
@@ -21,9 +19,11 @@ services:
     environment:
       DATABASE_URL: postgresql://tweezers:tweezers@db:5432/tweezers
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      RENDER_SERVICE_URL: ${RENDER_SERVICE_URL:-}
-      RENDER_SECRET: ${RENDER_SECRET:-}
-      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
+      # Rendering is on by default in this compose setup. The render container
+      # reaches the API as http://backend:8000 (callbacks + placeholder music).
+      RENDER_SERVICE_URL: ${RENDER_SERVICE_URL:-http://render:4000}
+      RENDER_SECRET: ${RENDER_SECRET:-dev-render-secret}
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-http://backend:8000}
       AUTH_DEV_BYPASS: ${AUTH_DEV_BYPASS:-false}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       CASHFREE_CLIENT_ID: ${CASHFREE_CLIENT_ID:-}
@@ -37,5 +37,26 @@ services:
     volumes:
       - ./backend:/app
 
+  render:
+    build: ./render-service
+    restart: unless-stopped
+    environment:
+      RENDER_SECRET: ${RENDER_SECRET:-dev-render-secret}
+      # URL the phone/emulator uses to download finished videos (10.0.2.2 is the
+      # host machine as seen from an Android emulator; use your LAN IP on a phone).
+      PUBLIC_BASE_URL: ${RENDER_PUBLIC_URL:-http://10.0.2.2:4000}
+      R2_ENDPOINT: ${R2_ENDPOINT:-}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID:-}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY:-}
+      R2_BUCKET: ${R2_BUCKET:-}
+      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL:-}
+    ports:
+      - "4000:4000"
+    volumes:
+      - renders:/tmp/renders
+    # Chromium needs more shared memory than Docker's 64MB default.
+    shm_size: "1gb"
+
 volumes:
   pgdata:
+  renders:

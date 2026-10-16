@@ -1,4 +1,7 @@
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from .routers import auth, poems, templates, music, creations, credits
@@ -15,6 +18,9 @@ app.add_middleware(
 
 # Schema is managed by Alembic: run `alembic upgrade head` (the Docker image does this on start).
 
+
+# Placeholder music (see static/music/generate.sh). Real media should live on R2/CDN.
+app.mount("/static", StaticFiles(directory=Path(__file__).resolve().parent.parent / "static"), name="static")
 
 app.include_router(auth.router)
 app.include_router(poems.router)

@@ -26,7 +26,7 @@ Status legend: **Built** = code exists and was exercised in tests; **Partial** =
 | Payments | **Cashfree Payments** (orders API, JS checkout SDK, signed webhook). Credits are bought on a standalone web page, outside the app | Partial: tested with a mocked Cashfree only. Off by default (`PAYMENTS_ENABLED=false`) |
 | Video rendering | **Remotion** (React) + headless Chromium + FFmpeg, self-hosted Node service | Built and run end to end locally (API to render service to callback); Dockerfile written but not built; not deployed |
 | Media storage + CDN | **Cloudflare R2** + Cloudflare CDN (no egress fees) | Partial: the render service uploads to R2 when `R2_*` is set (tested against a fake S3 endpoint only; real R2 and CDN domain not set up) |
-| Music | Licensed library (**Epidemic Sound** or **Artlist**) | Planned. Seed data uses placeholder URLs |
+| Music | Licensed library (**Epidemic Sound** or **Artlist**) | Planned. For now: three original synthesised placeholder tracks served by the backend at `/static/music/` (render tested with audio) |
 | Animated templates | Lottie / Rive files | Planned. Seed data uses placeholder URLs; the current video uses a code-drawn gradient with falling petals |
 | Mobile app | **React Native (Expo, TypeScript)**; distributed on Google Play (App Store later) | Partial: all create-flow screens written, typechecks and bundles for Android; not run on a device; Firebase login not wired (dev login only) |
 | Credits checkout page hosting | **Cloudflare Pages** (static file on its own domain) | Planned |
@@ -181,7 +181,7 @@ Recipient view: the shared link is `/v/{slug}`, a public HTML page (video + poem
 
 The HTTP service (`src/server.mjs`) accepts jobs on `POST /render` (shared-secret header), renders them one at a time, writes an MP4 and a JPEG thumbnail, and calls the backend's `POST /creations/internal/{id}/render-result` (same secret). If a job fails while using a music URL it retries once without music. The backend sends a job when `RENDER_SERVICE_URL` is set; when it is empty, creations are marked `ready` immediately with a placeholder URL.
 
-Verified locally (real Postgres, API, render service): creating a creation returned `rendering`, then `ready` with a playable 12.8 second 1080x1920 H.264 file and a thumbnail; a callback or render request with a wrong secret got 401. The seed music URLs are fake, so that run exercised the no-music retry. Audio with a real music URL has not been tested.
+Verified locally (real Postgres, API, render service): creating a creation returned `rendering`, then `ready` with a playable 12.8 second 1080x1920 H.264 file and a thumbnail; a callback or render request with a wrong secret got 401. The seed now includes three synthesised placeholder tracks served by the backend; a render with one of them produced a video with an AAC audio track and no retry. A Hindi (Devanagari) poem renders correctly.
 
 Uploads go to Cloudflare R2 when `R2_*` is set (verified against a fake S3 endpoint, not real R2); otherwise files stay on local disk. The `Dockerfile` (Chromium libraries, Noto fonts for Hindi, Remotion's headless Chrome) has not been built yet. Still to do for production: pick and set up the worker host, real Lottie/Rive templates, licensed music, (or Remotion Lambda instead of a worker), and checking Remotion's licensing terms for commercial use before launch.
 
