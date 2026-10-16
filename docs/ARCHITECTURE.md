@@ -279,3 +279,21 @@ The render service needs 2 GB or more and is billed separately (see the table ab
 | **Lambda** | Possible with an adapter, but cold starts and database connections need care; about $0-5 | Remotion has a Lambda renderer (`renderMediaOnLambda`) that renders in parallel, but it is a different code path from what we built | API about $0-5; render AWS compute plus the Remotion licence | Needs rewrites; licence minimum of $100 a month if over 3 people |
 
 Simplest AWS setup: API on Lightsail Micro, render service on Lightsail Medium (about $50 a month together, against about $32 on Render). Revisit Fargate or Remotion Lambda only at volume. AWS is not cheaper or simpler than Render or Railway at this size; the reasons to pick it are credits, a Mumbai region or wanting everything in one cloud account.
+
+### If Google Cloud is the choice (16 Oct 2026, third-party prices, unverified)
+
+Cloud Run runs a container and bills per second of use, and Mumbai (`asia-south1`) is a region. Rates used for Mumbai (tier 2): about $0.0000336 per vCPU-second, $0.0000035 per GiB-second, $0.40 per million requests; monthly free allowance of roughly 180,000 vCPU-seconds, 360,000 GiB-seconds and 2 million requests (figures differ between Google's pages, and one source claims a cheaper rate from August 2026, which I could not confirm).
+
+| GCP option | API + admin | Render service | Rough monthly cost |
+|---|---|---|---|
+| **Cloud Run** (scales to zero) | Fits. Early launch fits inside the free allowance (about $0); growth about $10. Keeping one instance warm to avoid cold starts is about $10-15 more (idle rate from a third-party source) | Fits only after a code change (see below). About $0.005 per render at 1 minute of 2 vCPU and 4 GiB, so about $0-8 at 1,500 renders and about $65 at 15,000 | Early launch about $0-20, growth about $75-80 |
+| **Compute Engine VM** (one machine running our docker compose) | Fits unchanged | Fits unchanged | e2-medium (2 vCPU, 4 GB) about $29, e2-standard-2 (2 vCPU, 8 GB) about $59 in Mumbai; another source says about $48 and $58, so check |
+| **GKE Autopilot** | Overkill at this size | Overkill | Not priced |
+
+Code changes needed for Cloud Run:
+1. **Render service.** Under the default request-based billing, CPU is throttled once a response is sent, so our "accept the job, return 202, render in the background" design can stall. Fixes: a synchronous render endpoint called through Cloud Tasks (a request can run long), a Cloud Run job per render, or instance-based billing (CPU always on, which costs more).
+2. **Migrations.** The image runs `alembic upgrade head` on every start; on Cloud Run run it once as a deploy step or job instead.
+3. **Database connections.** Many instances can open many connections: use Neon's pooled connection string and a small connection pool.
+4. **Admin login throttling** is kept in memory per instance, so it is weaker when several instances run.
+
+Compared with Render at the same size (about $32 early launch): Cloud Run is cheaper at low volume and has a Mumbai region, but needs the changes above; a single VM is simple and unchanged but you maintain the machine (updates, HTTPS, restarts).
