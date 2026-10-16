@@ -32,6 +32,7 @@ Status legend: **Built** = code exists and was exercised in tests; **Partial** =
 | Credits checkout page hosting | **Cloudflare Pages** (static file on its own domain) | Planned |
 | Backend API hosting | Render, Railway or Fly.io (pick a region near India) | Planned |
 | Render worker hosting | Separate worker server, or Remotion Lambda on AWS | Planned |
+| Admin dashboard | In-house: React web app served by the backend at `/admin` (same server, no extra hosting), API at `/admin/api`, roles, audit log | Built and tested on the API side (8 tests); UI type-checks and builds, Docker image stage written but not built, UI not yet clicked through in a browser |
 | Analytics | PostHog or Mixpanel (create-to-share funnel) | Planned |
 | Caching / sessions | Redis | Idea (not needed yet) |
 | Physical card printing + delivery (Phase 2) | Print and delivery partners, flowers/chocolate vendors | Idea |
@@ -90,6 +91,7 @@ Components in the repo:
 | `web-checkout/credits.html` | Standalone credits purchase page |
 | `frontend-demo/index.html` | Local demo page for the create flow (needs `AUTH_DEV_BYPASS=true`) |
 | `docker-compose.yml` | Local Postgres + backend |
+| `admin/` | Admin dashboard web app (see `admin/README.md`) |
 | `docs/` | This file and `PROJECT_DISCUSSION.md` |
 
 ### Data model (Postgres)
@@ -194,6 +196,7 @@ Uploads go to Cloudflare R2 when `R2_*` is set (verified against a fake S3 endpo
 | `DATABASE_URL` | backend | Postgres connection (Neon in production, add `?sslmode=require`) |
 | `ANTHROPIC_API_KEY` | backend | Claude poem generation (demo text if empty) |
 | `FIREBASE_PROJECT_ID` | backend | Expected audience of Firebase ID tokens |
+| `ADMIN_JWT_SECRET` | backend | Signs admin dashboard login tokens (16+ chars); empty keeps the admin API off |
 | `AUTH_DEV_BYPASS` | backend | Local demo login. Never in production |
 | `PAYMENTS_ENABLED` | backend | Master switch for credits and checkout |
 | `COST_PER_STORY_CREDITS` | backend | Credits per poem generation (default 5) |

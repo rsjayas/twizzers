@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -36,3 +37,10 @@ app.include_router(admin_router.router)
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# Admin dashboard UI (built from admin/, see admin/README.md). Mounted last so the
+# /admin/api routes above take priority. Skipped when the build isn't present.
+_admin_ui = Path(os.getenv("ADMIN_UI_DIR", Path(__file__).resolve().parent.parent.parent / "admin" / "dist"))
+if _admin_ui.is_dir():
+    app.mount("/admin", StaticFiles(directory=_admin_ui, html=True), name="admin-ui")

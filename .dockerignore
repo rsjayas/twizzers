@@ -1,0 +1,10 @@
+.git
+docs
+mobile
+render-service
+web-checkout
+frontend-demo
+**/node_modules
+**/dist
+**/__pycache__
+.env

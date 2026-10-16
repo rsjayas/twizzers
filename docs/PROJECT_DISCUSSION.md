@@ -154,6 +154,12 @@ Alternative: everything on AWS Mumbai (ap-south-1) for best India latency, at mo
 
 ---
 
+## 8b. Admin dashboard (decided)
+
+In-house admin web app (`admin/`), served by the backend at `/admin` so it needs no separate hosting. Roles: superadmin (everything), support (users, credit adjustments, retry renders, takedowns), content (templates, music, packs). Every change is written to an audit log. Payments on/off and the poem price are runtime settings editable there without a redeploy. Possible later: split it onto static hosting (e.g. Cloudflare Pages) or put it behind a VPN/IP allowlist.
+
+---
+
 ## 9. Next steps (suggested order)
 
 1. ~~Add Alembic and generate the first migration.~~ Done (`backend/alembic/`, migration `0001`).
