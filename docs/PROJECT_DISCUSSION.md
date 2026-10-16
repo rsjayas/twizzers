@@ -87,7 +87,7 @@ Decided later in the project: the backend and `web-checkout/credits.html` now us
 - Logo directions were designed for Sarovar: ripple mark, lotus ripple, wave monogram, moonlake, and an illustrated circular badge.
 - **Project and app were then renamed to "Tweezers"** (code, docker config, deep link scheme, README).
 - **Open item:** the logo boards still say "sarovar" with lake/lotus imagery. They need a redo for Tweezers (new direction or just a wordmark swap).
-- Open item: trademark and domain check for "Tweezers".
+- **Decision: the name stays "Tweezers"** (repo is `twizzers`, but "Twizzers" was rejected: too close to the Twizzlers candy brand). Tagline / theme: **"Two bodies, one soul"** (Hindi: "do jism, ek jaan"). Alternatives considered: Ek Jaan, Ekatma, Dohaa, Jodi. Open item: trademark and domain check for "Tweezers".
 
 ---
 

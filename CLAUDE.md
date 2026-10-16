@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working in this repository.
 
 ## Project
 
-twizzers (originally scaffolded under the name "Tweezers"; see `SCAFFOLD.md` for the original write-up) lets people express gratitude/feelings to a loved one: sign up, write or AI-generate a poem, pick an animated template and music, and get a shareable creation with a public link.
+Tweezers (tagline: "Two bodies, one soul"; the GitHub repo is named `twizzers`, but the product name is Tweezers, final unless the user says otherwise; see `SCAFFOLD.md` for the original scaffold write-up) lets people express gratitude/feelings to a loved one: sign up, write or AI-generate a poem, pick an animated template and music, and get a shareable creation with a public link.
 
 ## Layout
 
