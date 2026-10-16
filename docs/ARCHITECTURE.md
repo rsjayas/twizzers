@@ -13,7 +13,7 @@ Status legend: **Built** = code exists and was exercised in tests; **Partial** =
 | Task | Service | Where in the repo | Status |
 |---|---|---|---|
 | Poem generation (3 variants per request) | **Anthropic Claude API** (model set in `backend/app/ai.py`, currently `claude-sonnet-4-6`) | `backend/app/ai.py` | Built. Without `ANTHROPIC_API_KEY` it returns demo text. Not run with a real key yet. |
-| Poem animation / video | **No AI model.** Template-driven: code renders the poem as an animated video (Remotion). | `render-service/` | Partial (see section 4) |
+| Poem animation / video | **No AI model.** Template-driven: code renders the poem as an animated video (Remotion). | `render-service/` | Built (see section 4) |
 | Image generation (anime-style art) | **Not chosen.** Meta AI has no public API. Candidates: FLUX / Stable Diffusion via Replicate, fal.ai or Together; OpenAI image API; Google Imagen | - | Idea (Phase 4). See `PROJECT_DISCUSSION.md` 5b |
 | Generative AI video | None. | - | Idea (Phase 4) |
 
@@ -24,7 +24,7 @@ Status legend: **Built** = code exists and was exercised in tests; **Partial** =
 | Login (phone OTP) | **Firebase Auth**. App signs in with Firebase, backend verifies the ID token with `google-auth` | Built on the backend (mocked token check); app login screen not built |
 | Database | **PostgreSQL**: **Neon** in production, Postgres 16 container locally. Schema via **Alembic** | Built and run on local Postgres 16; Neon not set up yet |
 | Payments | **Cashfree Payments** (orders API, JS checkout SDK, signed webhook). Credits are bought on a standalone web page, outside the app | Partial: tested with a mocked Cashfree only. Off by default (`PAYMENTS_ENABLED=false`) |
-| Video rendering | **Remotion** (React) + headless Chromium + FFmpeg, self-hosted Node service | Partial |
+| Video rendering | **Remotion** (React) + headless Chromium + FFmpeg, self-hosted Node service | Built and run end to end locally (API to render service to callback); not deployed, no R2 upload yet |
 | Media storage + CDN | **Cloudflare R2** + Cloudflare CDN (no egress fees) | Planned. Renders are currently written to local disk |
 | Music | Licensed library (**Epidemic Sound** or **Artlist**) | Planned. Seed data uses placeholder URLs |
 | Animated templates | Lottie / Rive files | Planned. Seed data uses placeholder URLs; the current video uses a code-drawn gradient with falling petals |
@@ -86,7 +86,7 @@ Components in the repo:
 |---|---|
 | `backend/` | FastAPI + SQLAlchemy API, Alembic migrations, Dockerfile |
 | `mobile/` | React Native (Expo) app, blank template so far |
-| `render-service/` | Remotion composition (and, in progress, the HTTP service that renders it) |
+| `render-service/` | Remotion composition + HTTP service that queues and renders jobs, then calls the backend back |
 | `web-checkout/credits.html` | Standalone credits purchase page |
 | `frontend-demo/index.html` | Local demo page for the create flow (needs `AUTH_DEV_BYPASS=true`) |
 | `docker-compose.yml` | Local Postgres + backend |
@@ -179,11 +179,11 @@ Recipient view: anyone with the link calls `GET /creations/share/{slug}` (no log
 - optional music track with fade in/out,
 - length scales with the poem (8 to 60 seconds).
 
-Verified: a sample render produced a valid 12.8 second 1080x1920 H.264 file using the sandbox's Chromium. Audio with a real music URL has not been tested.
+The HTTP service (`src/server.mjs`) accepts jobs on `POST /render` (shared-secret header), renders them one at a time, writes an MP4 and a JPEG thumbnail, and calls the backend's `POST /creations/internal/{id}/render-result` (same secret). If a job fails while using a music URL it retries once without music. The backend sends a job when `RENDER_SERVICE_URL` is set; when it is empty, creations are marked `ready` immediately with a placeholder URL.
 
-In progress: an HTTP service wrapping the renderer (job queue, secret-protected, result callback to the backend) and the backend hook that sends render jobs to it. Until that is wired up, the backend still marks creations `ready` immediately with a placeholder URL.
+Verified locally (real Postgres, API, render service): creating a creation returned `rendering`, then `ready` with a playable 12.8 second 1080x1920 H.264 file and a thumbnail; a callback or render request with a wrong secret got 401. The seed music URLs are fake, so that run exercised the no-music retry. Audio with a real music URL has not been tested.
 
-Still to do for production: upload to Cloudflare R2, thumbnail, real Lottie/Rive templates, licensed music, a worker host (or Remotion Lambda), and checking Remotion's licensing terms for commercial use before launch.
+Still to do for production: upload to Cloudflare R2 (files are on local disk only), a Dockerfile and worker host, real Lottie/Rive templates, licensed music, (or Remotion Lambda instead of a worker), and checking Remotion's licensing terms for commercial use before launch.
 
 ---
 
@@ -197,6 +197,10 @@ Still to do for production: upload to Cloudflare R2, thumbnail, real Lottie/Rive
 | `AUTH_DEV_BYPASS` | backend | Local demo login. Never in production |
 | `PAYMENTS_ENABLED` | backend | Master switch for credits and checkout |
 | `COST_PER_STORY_CREDITS` | backend | Credits per poem generation (default 5) |
+| `RENDER_SERVICE_URL` | backend | Render service address; empty means placeholder video URLs |
+| `RENDER_SECRET` | backend, render-service | Shared secret for render jobs and result callbacks |
+| `BACKEND_PUBLIC_URL` | backend | How the render service reaches the API for callbacks |
+| `PORT`, `OUTPUT_DIR`, `PUBLIC_BASE_URL`, `BROWSER_EXECUTABLE` | render-service | Port, output folder, public file URL base, optional Chromium path |
 | `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET` | backend | Cashfree API keys (the secret also signs webhooks) |
 | `CASHFREE_ENV` | backend | `sandbox` or `production` |
 | `CASHFREE_NOTIFY_URL` | backend | Optional webhook URL sent with each order |

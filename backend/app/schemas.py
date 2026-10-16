@@ -82,6 +82,14 @@ class MusicTrackOut(BaseModel):
         from_attributes = True
 
 
+class RenderResultRequest(BaseModel):
+    job_id: Optional[str] = None
+    status: str                      # "ready" | "failed"
+    video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    error: Optional[str] = None
+
+
 class CreationCreateRequest(BaseModel):
     poem_id: str
     template_id: str

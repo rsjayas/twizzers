@@ -156,7 +156,7 @@ Alternative: everything on AWS Mumbai (ap-south-1) for best India latency, at mo
 ## 9. Next steps (suggested order)
 
 1. ~~Add Alembic and generate the first migration.~~ Done (`backend/alembic/`, migration `0001`).
-2. Build the **render service** (Remotion) so creations produce a real video.
+2. ~~Build the render service (Remotion).~~ Built and run end to end locally (`render-service/`); still to do: R2 upload, deployment, real templates and music.
 3. Build the **mobile app** (React Native / Expo, scaffold done in `mobile/`) against the existing API.
 4. Firebase phone-OTP login: backend token verification done (`/auth/firebase`); routes are now protected with `get_current_user` and ownership checks, and `/auth/signup` is dev-only (`AUTH_DEV_BYPASS`). Still to do: the app's login screen.
 5. Add deployment config (API host, Neon, Cloudflare).

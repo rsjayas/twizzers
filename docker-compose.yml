@@ -21,6 +21,9 @@ services:
     environment:
       DATABASE_URL: postgresql://tweezers:tweezers@db:5432/tweezers
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      RENDER_SERVICE_URL: ${RENDER_SERVICE_URL:-}
+      RENDER_SECRET: ${RENDER_SECRET:-}
+      BACKEND_PUBLIC_URL: ${BACKEND_PUBLIC_URL:-http://localhost:8000}
       AUTH_DEV_BYPASS: ${AUTH_DEV_BYPASS:-false}
       FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-}
       CASHFREE_CLIENT_ID: ${CASHFREE_CLIENT_ID:-}
