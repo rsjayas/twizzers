@@ -120,7 +120,7 @@ def get_creation(creation_id: str, db: Session = Depends(get_db), user: models.U
 def get_creation_by_share_link(slug: str, db: Session = Depends(get_db)):
     """Public recipient-facing lookup - no auth required."""
     creation = db.query(models.Creation).filter(models.Creation.share_link_slug == slug).first()
-    if not creation:
+    if not creation or creation.status == "removed":
         raise HTTPException(404, "Not found")
     creation.recipient_view_count = (creation.recipient_view_count or 0) + 1
     db.commit()
@@ -149,7 +149,7 @@ def log_share_event(
 def view_creation(slug: str, db: Session = Depends(get_db)):
     """Public page the recipient opens from a shared link: the video and poem."""
     creation = db.query(models.Creation).filter(models.Creation.share_link_slug == slug).first()
-    if not creation:
+    if not creation or creation.status == "removed":
         raise HTTPException(404, "Not found")
     creation.recipient_view_count = (creation.recipient_view_count or 0) + 1
     db.commit()

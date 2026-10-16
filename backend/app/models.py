@@ -145,9 +145,44 @@ class CreditTransaction(Base):
     amount_inr = Column(Integer, nullable=False)
     cashfree_order_id = Column(String, unique=True, nullable=True)
     cashfree_payment_id = Column(String, nullable=True)
-    status = Column(String, default="created")  # created | paid | failed
+    status = Column(String, default="created")  # created | paid | failed | adjusted (manual, by an admin)
+    note = Column(String, nullable=True)         # reason for a manual adjustment
     created_at = Column(DateTime, default=dt.datetime.utcnow)
     paid_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="credit_transactions")
     credit_pack = relationship("CreditPack")
+
+
+class AdminUser(Base):
+    """Staff login for the admin dashboard (separate from app users)."""
+    __tablename__ = "admin_users"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    email = Column(String, unique=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    role = Column(String, nullable=False)  # superadmin | support | content
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+    last_login_at = Column(DateTime, nullable=True)
+
+
+class AuditLog(Base):
+    """Every change made through the admin dashboard."""
+    __tablename__ = "audit_log"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    admin_id = Column(UUID(as_uuid=False), ForeignKey("admin_users.id"), nullable=True)
+    admin_email = Column(String, nullable=True)  # kept even if the admin is later removed
+    action = Column(String, nullable=False)      # e.g. "credits.adjust", "template.update"
+    target_type = Column(String, nullable=True)
+    target_id = Column(String, nullable=True)
+    details = Column(JSON, default=dict)
+    created_at = Column(DateTime, default=dt.datetime.utcnow, index=True)
+
+
+class Setting(Base):
+    """Runtime switches editable from the admin dashboard (override env defaults)."""
+    __tablename__ = "settings"
+    key = Column(String, primary_key=True)
+    value = Column(String, nullable=False)
+    updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow)
+    updated_by = Column(String, nullable=True)

@@ -1,19 +1,14 @@
-import os
 import datetime as dt
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from sqlalchemy.orm import Session
 
-from .. import models, schemas, cashfree_client
+from .. import models, schemas, cashfree_client, settings_store
 from ..database import get_db
 from ..firebase_auth import get_current_user
 
 router = APIRouter(prefix="/credits", tags=["credits"])
-
-# Same flag as app/routers/poems.py - keeps both in sync from one place.
-PAYMENTS_ENABLED = os.getenv("PAYMENTS_ENABLED", "false").lower() == "true"
-
 
 @router.get("/packs", response_model=List[schemas.CreditPackOut])
 def list_packs(db: Session = Depends(get_db)):
@@ -35,7 +30,7 @@ async def create_checkout_order(
     Called by the standalone web checkout page (NOT from inside the app)
     to start a Cashfree order for a credit pack purchase.
     """
-    if not PAYMENTS_ENABLED:
+    if not settings_store.get_value(db, "payments_enabled"):
         raise HTTPException(503, "Payments are not enabled yet - everything is free for now.")
 
     pack = db.query(models.CreditPack).filter(

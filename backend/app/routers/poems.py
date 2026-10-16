@@ -1,23 +1,15 @@
-import os
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from .. import models, schemas, ai
+from .. import models, schemas, ai, settings_store
 from ..database import get_db
 from ..firebase_auth import get_current_user
 
 router = APIRouter(prefix="/poems", tags=["poems"])
 
-# How many credits one AI story generation costs. 1 credit = Rs 1 by
-# convention (matches the credit pack pricing in seed_data.py), so this
-# maps directly to the Rs 1-10 per story range discussed.
-COST_PER_STORY_CREDITS = int(os.getenv("COST_PER_STORY_CREDITS", "5"))
-
-# Feature flag: while False, story generation is completely free - no
-# credit check, no deduction. Flip to "true" in the environment whenever
-# you're ready to turn payments back on; no code changes needed.
-PAYMENTS_ENABLED = os.getenv("PAYMENTS_ENABLED", "false").lower() == "true"
+# Credit price per generation and the payments switch come from app/settings_store.py
+# (env defaults, overridable from the admin dashboard without a redeploy).
 
 
 @router.post("/generate", response_model=schemas.PoemOut)
@@ -26,10 +18,12 @@ async def generate_poem(
     db: Session = Depends(get_db),
     user: models.User = Depends(get_current_user),
 ):
-    if PAYMENTS_ENABLED and (user.credits_balance or 0) < COST_PER_STORY_CREDITS:
+    payments_enabled = settings_store.get_value(db, "payments_enabled")
+    cost = settings_store.get_value(db, "cost_per_story_credits")
+    if payments_enabled and (user.credits_balance or 0) < cost:
         raise HTTPException(
             402,
-            f"Not enough credits. This costs {COST_PER_STORY_CREDITS} credits, "
+            f"Not enough credits. This costs {cost} credits, "
             f"you have {user.credits_balance or 0}. Buy more credits to continue.",
         )
 
@@ -56,8 +50,8 @@ async def generate_poem(
 
     # Deduct credits only after generation succeeds, so a failed AI call
     # never charges the user. Skipped entirely while payments are off.
-    if PAYMENTS_ENABLED:
-        user.credits_balance = (user.credits_balance or 0) - COST_PER_STORY_CREDITS
+    if payments_enabled:
+        user.credits_balance = (user.credits_balance or 0) - cost
 
     db.commit()
     db.refresh(poem)

@@ -26,6 +26,7 @@ else:
     os.environ["CASHFREE_CLIENT_SECRET"] = "test-secret"
     os.environ["RENDER_SERVICE_URL"] = ""
     os.environ["RENDER_SECRET"] = "render-secret"
+    os.environ["ADMIN_JWT_SECRET"] = "test-admin-secret-0123456789"
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 
@@ -78,5 +79,25 @@ def make_user(client):
             db.commit()
             db.close()
         return u["id"], {"Authorization": f"Bearer dev:{u['id']}"}
+
+    return make
+
+
+@pytest.fixture()
+def make_admin(client):
+    """Returns (admin_id, auth_headers) for a fresh admin with the given role."""
+    from app import models
+    from app.admin import security
+    from app.database import SessionLocal
+
+    def make(role: str):
+        db = SessionLocal()
+        admin = models.AdminUser(email=f"{role}-{next(_counter)}@test.example", role=role,
+                                 password_hash=security.hash_password("correct-horse-battery"))
+        db.add(admin)
+        db.commit()
+        out = (admin.id, {"Authorization": f"Bearer {security.make_token(admin)}"}, admin.email)
+        db.close()
+        return out
 
     return make
