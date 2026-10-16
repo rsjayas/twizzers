@@ -5,6 +5,7 @@
   "dependencies": {
     "@react-native-firebase/app": "^26.4.0",
     "@react-native-firebase/auth": "^26.4.0",
+    "@react-native-google-signin/google-signin": "^16.1.5",
     "expo": "~57.0.29",
     "expo-build-properties": "^57.0.22",
     "expo-dev-client": "^57.0.20",

@@ -46,7 +46,7 @@ Key advice: validate the "AI poem + animation + share" loop first, before cards,
 | Music | Licensed library (Epidemic Sound / Artlist); do not use unlicensed popular songs |
 | Payments | Cashfree (was Razorpay in the first scaffold) |
 | App ID | Android package and iOS bundle ID: `com.tweezers.app` (set in `mobile/app.json`; register the same ID in Firebase) |
-| Auth | **Firebase Auth** (phone OTP) - decided. Currently a stub in `backend/app/routers/auth.py`; backend should verify Firebase ID tokens. |
+| Auth | **Firebase Auth** - decided: **email + password is primary**, Google sign-in second, phone OTP built but hidden for now (SMS costs money). An email + password account needs a confirmed email. The backend keeps one user per person across sign-in methods (verified email or same phone). Currently a stub in `backend/app/routers/auth.py`; backend should verify Firebase ID tokens. |
 | Analytics | PostHog or Mixpanel, tracking the create → share funnel |
 
 ### Data model (Phase 1)

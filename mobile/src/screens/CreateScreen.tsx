@@ -10,7 +10,7 @@ const OCCASIONS = ['anniversary', 'apology', 'gratitude', 'long_distance', 'birt
 const TONES = ['deeply_romantic', 'playful', 'nostalgic'];
 const label = (s: string) => s.replace(/_/g, ' ');
 
-export function CreateScreen({ onPoem }: { onPoem: (poem: Poem) => void }) {
+export function CreateScreen({ onPoem, onSignOut }: { onPoem: (poem: Poem) => void; onSignOut: () => void }) {
   const [mode, setMode] = useState<'ai' | 'write'>('ai');
   const [occasion, setOccasion] = useState(OCCASIONS[0]);
   const [tone, setTone] = useState(TONES[0]);
@@ -88,6 +88,7 @@ export function CreateScreen({ onPoem }: { onPoem: (poem: Poem) => void }) {
         loading={busy}
         disabled={mode === 'write' && own.trim().length < 4}
       />
+      <Button label="Sign out" onPress={onSignOut} secondary />
     </Screen>
   );
 }

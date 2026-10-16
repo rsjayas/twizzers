@@ -54,6 +54,7 @@ export default function App() {
       screen = (
         <CreateScreen
           onPoem={(poem) => setStep(poem.status === 'finalized' ? { name: 'style', poem } : { name: 'pick', poem })}
+          onSignOut={() => { auth.signOut().finally(() => { setUser(null); setStep({ name: 'login' }); }); }}
         />
       );
       break;

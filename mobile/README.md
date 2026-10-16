@@ -14,18 +14,25 @@ For the full flow run the backend (with `AUTH_DEV_BYPASS=true` while Firebase lo
 
 Layout: `App.tsx` (step state machine), `src/api.ts` (backend client), `src/auth.ts` (auth provider: dev login now, Firebase TODO), `src/screens/*`, `src/ui.tsx` (small shared components).
 
-## Real login (Firebase phone OTP)
+## Sign-in methods
 
-Firebase project `tweezer-5e9f2`, app ID `com.tweezers.app`; `google-services.json` and `GoogleService-Info.plist` are in this folder (client config, not secrets).
+| Method | State |
+|---|---|
+| **Email + password** (primary) | Built. Create account, confirm the email, sign in, forgot password, resend the confirmation email. An account must have a confirmed email before it can use the app. |
+| **Google** | Built. The button shows when `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID` is set. |
+| **Phone (SMS code)** | Built but hidden (SMS costs money). Set `EXPO_PUBLIC_ENABLE_PHONE_LOGIN=true` to show it. |
 
-Phone login needs a **development build**, not Expo Go (native Firebase module):
+One person is one account: the backend links email + password, Google and phone sign-ins that share a confirmed email (or the same phone number). Firebase project `tweezer-5e9f2`, app ID `com.tweezers.app`; `google-services.json` and `GoogleService-Info.plist` are in this folder (client config, not secrets).
 
-1. In `.env` set `EXPO_PUBLIC_AUTH_MODE=firebase` and `EXPO_PUBLIC_API_URL` to a backend that has `FIREBASE_PROJECT_ID=tweezer-5e9f2` (and `AUTH_DEV_BYPASS=false` or unset).
-2. Build: `npx eas-cli build --profile development --platform android` (Expo account needed), or locally `npx expo run:android` with the Android SDK installed.
-3. In the Firebase console add the build's **SHA-1 and SHA-256** fingerprints (Project settings > your Android app). `eas credentials` shows them for EAS builds. Without these, Android phone verification fails.
-4. In Firebase console > Authentication enable the **Phone** provider. For testing without SMS, add test phone numbers with fixed codes there.
-5. Optional: restrict the API keys in Google Cloud console (Credentials) to the app's package/bundle ID.
+Real login needs a **development build**, not Expo Go (native Firebase and Google modules):
 
-With `EXPO_PUBLIC_AUTH_MODE=dev` (default) the app uses the dev login and still works in Expo Go (`npx expo start --go`).
+1. In Firebase console > Authentication > Sign-in method: enable **Email/Password** (leave "Email link" off) and, for Google, enable **Google**.
+2. In `.env` set `EXPO_PUBLIC_AUTH_MODE=firebase`, `EXPO_PUBLIC_API_URL` to a backend that has `FIREBASE_PROJECT_ID=tweezer-5e9f2` and `AUTH_DEV_BYPASS` off, and for Google `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`.
+3. Build: `npx eas-cli build --profile development --platform android` (Expo account needed), or locally `npx expo run:android` with the Android SDK.
+4. For Google (and phone) on Android, add the build's **SHA-1 and SHA-256** fingerprints in Firebase (Project settings > your Android app; `eas credentials` shows them), then download `google-services.json` again and replace the one here.
+5. Optional: customise the verification and password-reset email templates (Firebase console > Authentication > Templates), and restrict the API keys in Google Cloud console to the app's package/bundle ID.
+6. Phone only: enable the **Phone** provider, and add fixed test numbers with codes to test without SMS.
 
-Status: typechecks and bundles for Android (`npx expo export --platform android`), but has not been run on a device or emulator. Firebase phone-OTP login is written (send code, verify, restore session, token refresh) but has not been run on a device or against real Firebase; `expo prebuild` succeeds for Android and iOS with the Firebase plugins. In dev mode the session is kept in memory only. Expo's docs were not reachable when this was written, so only core React Native APIs are used.
+With `EXPO_PUBLIC_AUTH_MODE=dev` (default) the app uses a dev login that checks no passwords and still works in Expo Go (`npx expo start --go`).
+
+Status: typechecks and bundles for Android (`npx expo export --platform android`), but has not been run on a device or emulator. Firebase login (email + password, Google, hidden phone) is written but has not been run on a device or against real Firebase; `expo prebuild` succeeds for Android and iOS with the Firebase plugins. In dev mode the session is kept in memory only. Expo's docs were not reachable when this was written, so only core React Native APIs are used.

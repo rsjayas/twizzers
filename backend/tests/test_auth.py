@@ -101,3 +101,10 @@ def test_existing_user_with_that_email_is_linked_when_verified(client, tokens):
     tokens["l"] = claims("uid-legacy", "google.com", "legacy@example.com")
     out = login(client, "l").json()
     assert out["id"] == legacy_id
+
+
+def test_display_name_from_the_token_is_used(client, tokens):
+    c = claims("uid-named", "google.com", "named.person@example.com")
+    c["name"] = "Named Person"
+    tokens["n"] = c
+    assert login(client, "n").json()["name"] == "Named Person"

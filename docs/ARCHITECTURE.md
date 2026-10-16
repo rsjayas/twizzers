@@ -21,7 +21,7 @@ Status legend: **Built** = code exists and was exercised in tests; **Partial** =
 
 | Task | Service | Status |
 |---|---|---|
-| Login (phone OTP) | **Firebase Auth** (project `tweezer-5e9f2`). App signs in with Firebase, backend verifies the ID token with `google-auth` | Backend built (mocked token check). App login written (OTP, session restore, token refresh), not yet run on a device or against real Firebase; needs a development build and SHA fingerprints |
+| Login | **Firebase Auth** (project `tweezer-5e9f2`): email + password (primary), Google, phone OTP (hidden). App signs in with Firebase, backend verifies the ID token with `google-auth` and links sign-in methods into one user | Backend built and tested (mocked token check, 7 auth tests). App login written (email, Google, hidden phone, session restore, token refresh), not yet run on a device or against real Firebase; needs a development build, enabled providers and, for Google, SHA fingerprints |
 | Database | **PostgreSQL**: **Neon** in production, Postgres 16 container locally. Schema via **Alembic** | Built and run on local Postgres 16; Neon not set up yet |
 | Payments | **Cashfree Payments** (orders API, JS checkout SDK, signed webhook). Credits are bought on a standalone web page, outside the app | Partial: tested with a mocked Cashfree only. Off by default (`PAYMENTS_ENABLED=false`) |
 | Video rendering | **Remotion** (React) + headless Chromium + FFmpeg, self-hosted Node service | Built and run end to end locally (API to render service to callback); Dockerfile written but not built; not deployed |
@@ -232,20 +232,20 @@ Written 16 Oct 2026 from third-party pricing summaries, not the vendors' own pri
 | Database (Neon) | about $0.106 per compute-hour (1 CU = 1 vCPU, 4 GB) + $0.35 per GB-month; free tier 100 CU-hours | $0 | $0-20 | $20-80 |
 | Videos (Cloudflare R2) | $0.015 per GB-month, free egress, 10 GB free | $0 | $0 | about $1 |
 | AI poems (Claude API) | about $0.008 per request | about $1 | about $24 | about $240 |
-| Phone login SMS (Firebase, India) | about $0.06-0.07 per SMS (10 a day free); paid Blaze plan needed | $0 (test numbers) | about $70 | about $435 |
+| Login (email + password and Google) | Free; phone SMS (about $0.06-0.07 per SMS in India, paid Blaze plan) is hidden, so no SMS cost | $0 | $0 | $0 |
 | Domain | about $12 a year | $1 | $1 | $1 |
-| **Total** | | **about $2-10 (Rs 200-900)** | **about $130-210 (Rs 11,500-18,500)** | **about $830-980 (Rs 73,000-86,000)** |
+| **Total** | | **about $2-10 (Rs 200-900)** | **about $60-140 (Rs 5,000-12,500)** | **about $400-540 (Rs 35,000-48,000)** |
 
 One-time: Google Play developer account (about $25), Apple Developer account ($99 a year, only when you ship on iPhone). Both are unverified.
 
 ### What drives the bill
-1. **SMS login is the biggest line.** About $0.07 per SMS is roughly Rs 6 per new user, more than the Rs 5 a poem sells for. Google sign-in costs nothing per user, and Indian SMS providers charge about Rs 0.4-0.6 per SMS, so a cheaper OTP route or Google sign-in would cut this by 90% or more.
+1. **SMS login would have been the biggest line**, so phone login is hidden: email + password and Google cost nothing per user. If phone login is turned on later, plan for about $0.07 (Rs 6) per SMS in India, more than the Rs 5 a poem sells for, or use a cheaper Indian SMS route (about Rs 0.4-0.6).
 2. **AI poems** are the second line, about Rs 0.7 each. A smaller model would cut it further (check pricing).
 3. **Servers** are small. The render worker is the largest server cost because it runs a browser.
 4. **Storage** is negligible for a long time. Egress from R2 is free.
 
 ### Revenue check (growth case)
-30,000 poems at Rs 5 is about Rs 150,000 (about $1,700) before the gateway fee. The estimate above is about half of that. At the early-launch volume, roughly Rs 15,000 of revenue would be needed to cover about Rs 11,500 of cost.
+30,000 poems at Rs 5 is about Rs 150,000 (about $1,700) before the gateway fee. The estimate above is about a quarter of that. At the early-launch volume, roughly Rs 5,000-12,500 of revenue would cover the cost.
 
 ### Not priced yet
 - **Music licensing** (Epidemic Sound, Artlist or similar) for use inside a paid app is likely a commercial licence. Ask the vendors; it could be the largest unknown.

@@ -67,6 +67,7 @@ def get_or_create_user(db: Session, claims: dict, name: str | None = None) -> mo
     phone = claims.get("phone_number")
     email = (claims.get("email") or "").strip().lower() or None
     email_verified = bool(claims.get("email_verified"))
+    name = name or (claims.get("name") or "").strip() or None  # Firebase display name (set at sign-up / by Google)
 
     if provider == "password" and not email_verified:
         raise HTTPException(403, "email_not_verified")
