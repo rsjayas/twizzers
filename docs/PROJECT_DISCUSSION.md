@@ -45,6 +45,7 @@ Key advice: validate the "AI poem + animation + share" loop first, before cards,
 | Media storage + CDN | **Cloudflare R2 + CDN** (zero egress fees suit a share-heavy app) |
 | Music | Licensed library (Epidemic Sound / Artlist); do not use unlicensed popular songs |
 | Payments | Cashfree (was Razorpay in the first scaffold) |
+| App ID | Android package and iOS bundle ID: `com.tweezers.app` (set in `mobile/app.json`; register the same ID in Firebase) |
 | Auth | **Firebase Auth** (phone OTP) - decided. Currently a stub in `backend/app/routers/auth.py`; backend should verify Firebase ID tokens. |
 | Analytics | PostHog or Mixpanel, tracking the create → share funnel |
 
