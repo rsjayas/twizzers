@@ -371,3 +371,18 @@ What this means:
 - **Container sizes:** API 0.25 vCPU and 0.5 GB is enough. The renderer needs 2 GB or more and CPU matters more than anything: at 1 vCPU it takes about 6 minutes, at 2 vCPU about 3 minutes.
 - **Throughput:** one 1-vCPU worker makes about 10 videos an hour (about 7,000 a month at 100% busy, with long waits at busy times). One 2-vCPU worker makes about 20 an hour. Growth volume needs several workers or on-demand parallel tasks.
 - **Ways to cut the cost and the wait** (not done yet): render at 720x1280 instead of 1080x1920, lower the frame rate, or add more CPUs per job.
+
+### AWS EC2 virtual machine (one machine running our docker compose; 16 Oct 2026, Mumbai, third-party prices, unverified)
+
+Our whole stack (API, admin, renderer) fits on one 2 vCPU, 4 GB machine (API 90 MB plus renderer peak 1.6 GB). You maintain the machine yourself: operating-system updates, Docker, HTTPS (for example Caddy or nginx with free certificates) and restarts. One machine is a single point of failure and does not scale; a render slows the API while it runs.
+
+| Instance | vCPU / memory | On demand per hour | Per month (730 hours) | Notes |
+|---|---|---|---|---|
+| **t3.medium** ("medium", Intel) | 2 / 4 GB | $0.0448 | about $33 | Burstable: CPU use above the baseline (20% per vCPU, unverified) draws credits, then costs $0.05 per vCPU-hour in the default unlimited mode |
+| t4g.medium (ARM) | 2 / 4 GB | $0.0224 | about $16 | Cheapest; needs ARM images (Chromium/Remotion on ARM untested) |
+| c7g.large (ARM, compute optimised) | 2 / 4 GB | $0.0491 | about $36 | Full CPU all the time, no credits; ARM untested |
+| c6i.large (Intel, compute optimised) | 2 / 4 GB | $0.0850 | about $62 | Full CPU, works with our x86 images unchanged |
+
+Add about $2.7 a month for a 30 GB gp3 disk ($0.0912 per GB-month in Mumbai) and about $3.65 for the public IPv4 address ($0.005 per hour). Internet data transfer was not verified (check the pricing page).
+
+All-in for a t3.medium: about **$39 a month**, plus a possible CPU-credit charge. Rendering uses about 360 CPU-seconds per video: at early launch (1,500 videos, about 150 vCPU-hours a month) that is within what a t3.medium earns, so little or no extra charge, if renders are spread out. At growth (15,000 videos, about 1,500 vCPU-hours) it would exceed both the baseline (extra about $60 a month) and the machine's total capacity, so use a c-type machine or several. One 2 vCPU machine can render about 20 videos an hour (about 14,000 a month if never idle).
