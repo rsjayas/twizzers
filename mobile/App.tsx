@@ -1,5 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import { auth } from './src/auth';
 import { CreateScreen } from './src/screens/CreateScreen';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { PickPoemScreen } from './src/screens/PickPoemScreen';
@@ -19,6 +21,29 @@ type Step =
 export default function App() {
   const [, setUser] = useState<User | null>(null);
   const [step, setStep] = useState<Step>({ name: 'login' });
+  const [restoring, setRestoring] = useState(true);
+
+  // Returning users (Firebase keeps the session) skip the login screen.
+  useEffect(() => {
+    auth
+      .restore()
+      .then((u) => {
+        if (u) {
+          setUser(u);
+          setStep({ name: 'create' });
+        }
+      })
+      .catch(() => {})
+      .finally(() => setRestoring(false));
+  }, []);
+
+  if (restoring) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff0f4' }}>
+        <ActivityIndicator color="#d1416b" size="large" />
+      </View>
+    );
+  }
 
   let screen: React.ReactElement;
   switch (step.name) {

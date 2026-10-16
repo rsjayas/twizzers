@@ -21,14 +21,14 @@ Status legend: **Built** = code exists and was exercised in tests; **Partial** =
 
 | Task | Service | Status |
 |---|---|---|
-| Login (phone OTP) | **Firebase Auth**. App signs in with Firebase, backend verifies the ID token with `google-auth` | Built on the backend (mocked token check); app login screen not built |
+| Login (phone OTP) | **Firebase Auth** (project `tweezer-5e9f2`). App signs in with Firebase, backend verifies the ID token with `google-auth` | Backend built (mocked token check). App login written (OTP, session restore, token refresh), not yet run on a device or against real Firebase; needs a development build and SHA fingerprints |
 | Database | **PostgreSQL**: **Neon** in production, Postgres 16 container locally. Schema via **Alembic** | Built and run on local Postgres 16; Neon not set up yet |
 | Payments | **Cashfree Payments** (orders API, JS checkout SDK, signed webhook). Credits are bought on a standalone web page, outside the app | Partial: tested with a mocked Cashfree only. Off by default (`PAYMENTS_ENABLED=false`) |
 | Video rendering | **Remotion** (React) + headless Chromium + FFmpeg, self-hosted Node service | Built and run end to end locally (API to render service to callback); Dockerfile written but not built; not deployed |
 | Media storage + CDN | **Cloudflare R2** + Cloudflare CDN (no egress fees) | Partial: the render service uploads to R2 when `R2_*` is set (tested against a fake S3 endpoint only; real R2 and CDN domain not set up) |
 | Music | Licensed library (**Epidemic Sound** or **Artlist**) | Planned. For now: three original synthesised placeholder tracks served by the backend at `/static/music/` (render tested with audio) |
 | Animated templates | Lottie / Rive files | Planned. Seed data uses placeholder URLs; the current video uses a code-drawn gradient with falling petals |
-| Mobile app | **React Native (Expo, TypeScript)**; distributed on Google Play (App Store later) | Partial: all create-flow screens written, typechecks and bundles for Android; not run on a device; Firebase login not wired (dev login only) |
+| Mobile app | **React Native (Expo, TypeScript)**; distributed on Google Play (App Store later) | Partial: all create-flow screens written, typechecks and bundles for Android; not run on a device; Firebase login written but untested (dev login is the default) |
 | Credits checkout page hosting | **Cloudflare Pages** (static file on its own domain) | Planned |
 | Backend API hosting | Render, Railway or Fly.io (pick a region near India) | Planned |
 | Render worker hosting | Separate worker server, or Remotion Lambda on AWS | Planned |
