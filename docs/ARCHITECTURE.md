@@ -327,3 +327,23 @@ Reported rates: about $0.12 per ACU-hour in US regions, $0.20 in Tokyo (a Mumbai
 Other catches: the database lives in a private network (VPC), so the API must run on AWS or connect through extra networking, which can add costs such as a NAT gateway or load balancer (unverified); resume delay after auto-pause is longer than Neon's.
 
 Verdict: stay on Neon for launch. Aurora makes sense only if everything else moves to AWS and you want its backups, high availability and account integration; at our size it is several times more expensive.
+
+### API Gateway + Lambda for the API and for rendering (16 Oct 2026, third-party prices, unverified)
+
+Rates: Lambda about $0.20 per million requests and $0.0000166667 per GB-second (x86; ARM about 20% cheaper), with a free tier of 1 million requests and 400,000 GB-seconds a month (not available on functions with provisioned concurrency). API Gateway HTTP API is about $1 per million requests from memory (not found in sources); a Lambda function URL can replace API Gateway at no gateway charge. Mumbai rates are slightly different.
+
+| Piece | How it would run | Rough monthly cost |
+|---|---|---|
+| API + admin | FastAPI behind the Mangum adapter in a Lambda container image, in front of API Gateway | Early launch about $0-2 (inside the free tier plus logs). Growth about $2-6 (1 million requests, API Gateway about $1, logs). |
+| Rendering | A Lambda that the API starts asynchronously; runs to completion (no CPU throttling like Cloud Run), then uploads to R2 and calls back | About $0.004 per render at 4 GB for 60 seconds (240 GB-seconds). 1,500 renders about $0-6; 15,000 renders about $53, plus the Remotion licence if the team is over 3 people |
+| Database | Neon, public over the internet, so the functions need no VPC and no NAT gateway | See the Neon section |
+| **Total** | | **Early launch about $0-10, growth about $55-65** (cheapest of all the options at low volume) |
+
+What it takes:
+1. **Limits.** API Gateway cuts requests at 30 seconds (cannot be raised), and `ai.py` waits up to 30 seconds for Claude, so lower that wait to about 20 seconds. Lambda's own limits (15 minutes, up to 10 GB memory) are from memory.
+2. **Database connections.** Every concurrent Lambda opens its own connection: use Neon's pooled connection string and SQLAlchemy's `NullPool` (a source recommends NullPool behind a pooler).
+3. **Cold starts.** FastAPI with SQLAlchemy and google-auth will add a delay on the first request after idle; the size is not measured. Provisioned concurrency removes it but costs extra and loses the free tier.
+4. **Rendering must be reworked.** Our Node server does not run as is. Either Remotion's own Lambda renderer (a different code path, and the licence above) or our renderer in a Lambda container with Chromium (untested).
+5. **Other changes.** Run migrations as a deploy step; serve the admin UI and music from storage (S3/CloudFront, R2 or Cloudflare Pages) instead of the API; the admin login throttle is per instance, so use API Gateway throttling or a shared store; new AWS accounts may start with low concurrency limits (unverified); an infrastructure tool (SAM, CDK or Terraform) and secrets storage are needed.
+
+Verdict: cheapest and no servers to manage, but the most engineering work and the most unknowns (cold starts, Chromium on Lambda). Not recommended for launch; consider it later if idle cost matters.
