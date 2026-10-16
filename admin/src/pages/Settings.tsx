@@ -9,6 +9,8 @@ export function SettingsPage() {
   const { data, error, reload } = useLoad(() => api<Settings>('/settings'), []);
   const [payments, setPayments] = useState(false);
   const [cost, setCost] = useState('5');
+  const [signups, setSignups] = useState(true);
+  const [welcome, setWelcome] = useState('0');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const editable = can('manage_settings');
@@ -17,6 +19,8 @@ export function SettingsPage() {
     if (data) {
       setPayments(data.payments_enabled);
       setCost(String(data.cost_per_story_credits));
+      setSignups(data.signups_enabled);
+      setWelcome(String(data.welcome_credits));
     }
   }, [data]);
 
@@ -25,7 +29,7 @@ export function SettingsPage() {
     setSaveError(null);
     setSaved(false);
     try {
-      await api('/settings', { method: 'PUT', body: { payments_enabled: payments, cost_per_story_credits: Number(cost) } });
+      await api('/settings', { method: 'PUT', body: { payments_enabled: payments, cost_per_story_credits: Number(cost), signups_enabled: signups, welcome_credits: Number(welcome) } });
       setSaved(true);
       reload();
     } catch (err) {
@@ -46,6 +50,15 @@ export function SettingsPage() {
           <label>Credits per AI poem
             <input type="number" min={0} max={1000} value={cost} disabled={!editable} onChange={(e) => setCost(e.target.value)} />
           </label>
+          <label className="check">
+            <input type="checkbox" checked={signups} disabled={!editable} onChange={(e) => setSignups(e.target.checked)} />
+            New sign-ups allowed
+          </label>
+          <p className="muted small">Off stops new accounts from being created (for example during an attack). People who already have an account keep working.</p>
+          <label>Welcome credits for every new account
+            <input type="number" min={0} max={1000} value={welcome} disabled={!editable} onChange={(e) => setWelcome(e.target.value)} />
+          </label>
+          <p className="muted small">Only matters while payments are on. Each new account is given this many credits (recorded in its credit history).</p>
           <ErrorBox message={saveError} />
           {saved ? <p className="ok">Saved. Changes apply immediately.</p> : null}
           {editable ? <Button type="submit">Save</Button> : <p className="muted small">Only a superadmin can change settings.</p>}

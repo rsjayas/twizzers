@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api } from '../api';
+import { api, download } from '../api';
+import { useAuth } from '../auth';
 import type { Paged, Txn } from '../api';
-import { Badge, Card, ErrorBox, Page, Pager, fmtDate, rupees, useLoad } from '../ui';
+import { Badge, Button, Card, ErrorBox, Page, Pager, errMsg, fmtDate, rupees, useLoad } from '../ui';
 
 const LIMIT = 25;
 const STATUSES = ['', 'created', 'paid', 'failed', 'adjusted'];
 
 export function TransactionsPage() {
+  const { can } = useAuth();
+  const [exportError, setExportError] = useState<string | null>(null);
   const [status, setStatus] = useState('');
   const [offset, setOffset] = useState(0);
   const { data, error, loading } = useLoad(() => api<Paged<Txn>>(`/transactions?status=${status}&limit=${LIMIT}&offset=${offset}`), [status, offset]);
@@ -16,11 +19,15 @@ export function TransactionsPage() {
     <Page
       title="Transactions"
       actions={
+        <>
+        {can('export_data') ? <Button variant="ghost" onClick={() => download('/export/transactions.csv', 'transactions.csv').catch((e) => setExportError(errMsg(e)))}>Export CSV</Button> : null}
         <select value={status} onChange={(e) => { setOffset(0); setStatus(e.target.value); }} aria-label="Status">
           {STATUSES.map((s) => <option key={s} value={s}>{s || 'All statuses'}</option>)}
         </select>
+        </>
       }
     >
+      <ErrorBox message={exportError} />
       <p className="muted small">"created" = checkout started but not paid. "adjusted" = credits added or removed by an admin.</p>
       <ErrorBox message={error} />
       <Card>

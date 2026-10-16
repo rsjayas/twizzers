@@ -32,7 +32,7 @@ Status legend: **Built** = code exists and was exercised in tests; **Partial** =
 | Credits checkout page hosting | **Cloudflare Pages** (static file on its own domain) | Planned |
 | Backend API hosting | Render, Railway or Fly.io (pick a region near India) | Planned |
 | Render worker hosting | Separate worker server, or Remotion Lambda on AWS | Planned |
-| Admin dashboard | In-house: React web app served by the backend at `/admin` (same server, no extra hosting), API at `/admin/api`, roles, audit log | Built and tested on the API side (8 tests); UI type-checks and builds, Docker image stage written but not built, UI not yet clicked through in a browser |
+| Admin dashboard | In-house: React web app served by the backend at `/admin` (same server, no extra hosting), API at `/admin/api`: dashboard and funnel, users (block, erase, export), reports/moderation, poems, settings, system status, roles, two-factor login, audit log | Built and tested: 20 admin API tests, and every screen was clicked through in a real browser against a local stack. The Docker image stage is written but not built |
 | Analytics | PostHog or Mixpanel (create-to-share funnel) | Planned |
 | Caching / sessions | Redis | Idea (not needed yet) |
 | Physical card printing + delivery (Phase 2) | Print and delivery partners, flowers/chocolate vendors | Idea |

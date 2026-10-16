@@ -2,13 +2,18 @@
 Admin dashboard API (served under /admin/api). Every route needs an admin
 token; changes are role-checked and written to the audit log.
 """
+import csv
 import datetime as dt
+import io
+import os
 from typing import Optional
 
 import httpx
+import pyotp
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from .. import models, settings_store
@@ -35,6 +40,7 @@ def _iso(value: Optional[dt.datetime]) -> Optional[str]:
 class LoginRequest(BaseModel):
     email: str
     password: str
+    code: Optional[str] = None  # authenticator-app code, needed when the admin turned on 2FA
 
 
 def _admin_out(a: models.AdminUser) -> dict:
@@ -45,6 +51,7 @@ def _admin_out(a: models.AdminUser) -> dict:
         "is_active": a.is_active,
         "created_at": _iso(a.created_at),
         "last_login_at": _iso(a.last_login_at),
+        "totp_enabled": bool(a.totp_enabled),
         "permissions": sorted(p for p, roles in security.PERMISSIONS.items() if a.role in roles),
     }
 
@@ -60,6 +67,12 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     if not admin or not ok or not admin.is_active:
         security.record_login_failure(*keys)
         raise HTTPException(401, "Wrong email or password")
+    if admin.totp_enabled:
+        if not payload.code:
+            raise HTTPException(401, "2fa_required")  # not counted as a failed attempt
+        if not pyotp.TOTP(admin.totp_secret).verify(payload.code.strip(), valid_window=1):
+            security.record_login_failure(*keys)
+            raise HTTPException(401, "Wrong code")
     security.clear_login_failures(*keys)
     admin.last_login_at = dt.datetime.utcnow()
     audit(db, admin, "admin.login")
@@ -96,6 +109,7 @@ def stats(days: int = 30, db: Session = Depends(get_db), admin: models.AdminUser
         "signups": _daily(db, models.User.created_at, since),
         "poems": _daily(db, models.Poem.created_at, since),
         "creations": _daily(db, models.Creation.created_at, since),
+        "shares": _daily(db, models.Share.shared_at, since),
         "revenue_inr": _daily(db, models.CreditTransaction.paid_at, since,
                               models.CreditTransaction.status == "paid", models.CreditTransaction.amount_inr),
     }
@@ -105,6 +119,32 @@ def stats(days: int = 30, db: Session = Depends(get_db), admin: models.AdminUser
     by_status = dict(db.query(models.Creation.status, func.count()).group_by(models.Creation.status).all())
     revenue = db.query(func.coalesce(func.sum(models.CreditTransaction.amount_inr), 0)).filter(
         models.CreditTransaction.status == "paid").scalar()
+
+    def distinct_users(col, *joins):
+        q = db.query(func.count(func.distinct(col)))
+        for j in joins:
+            q = q.join(*j)
+        return q.scalar()
+
+    funnel = {
+        "signed_up": db.query(func.count(models.User.id)).filter(models.User.deleted_at.is_(None)).scalar(),
+        "made_a_poem": distinct_users(models.Poem.user_id),
+        "made_a_video": distinct_users(models.Creation.user_id),
+        "shared": distinct_users(models.Creation.user_id, (models.Share, models.Share.creation_id == models.Creation.id)),
+    }
+
+    def top(model, name_col, fk):
+        rows = (db.query(name_col, func.count(models.Creation.id))
+                .join(models.Creation, fk == model.id)
+                .filter(models.Creation.created_at >= since)
+                .group_by(name_col).order_by(func.count(models.Creation.id).desc()).limit(5).all())
+        return [{"name": n, "count": c} for n, c in rows]
+
+    in_range = db.query(models.Creation.status, func.count()).filter(models.Creation.created_at >= since) \
+        .group_by(models.Creation.status).all()
+    range_counts = dict(in_range)
+    finished = range_counts.get("ready", 0) + range_counts.get("failed", 0)
+
     return {
         "totals": {
             "users": db.query(func.count(models.User.id)).scalar(),
@@ -113,8 +153,16 @@ def stats(days: int = 30, db: Session = Depends(get_db), admin: models.AdminUser
             "shares": db.query(func.count(models.Share.id)).scalar(),
             "revenue_inr": int(revenue),
             "credits_outstanding": int(db.query(func.coalesce(func.sum(models.User.credits_balance), 0)).scalar()),
+            "open_reports": db.query(func.count(models.Report.id)).filter(models.Report.status == "open").scalar(),
         },
         "creations_by_status": by_status,
+        "render_failure_rate": round(range_counts.get("failed", 0) / finished, 3) if finished else 0,
+        "funnel": funnel,
+        "shares_by_channel": [{"name": n, "count": c} for n, c in
+                              db.query(models.Share.channel, func.count()).filter(models.Share.shared_at >= since)
+                              .group_by(models.Share.channel).order_by(func.count().desc()).all()],
+        "top_templates": top(models.Template, models.Template.name, models.Creation.template_id),
+        "top_music": top(models.MusicTrack, models.MusicTrack.title, models.Creation.music_track_id),
         "daily": daily,
     }
 
@@ -124,7 +172,8 @@ def stats(days: int = 30, db: Session = Depends(get_db), admin: models.AdminUser
 def _user_out(u: models.User) -> dict:
     return {"id": u.id, "name": u.name, "phone": u.phone, "email": u.email,
             "providers": sorted({i.provider for i in u.identities}), "credits_balance": u.credits_balance or 0,
-            "created_at": _iso(u.created_at)}
+            "is_blocked": bool(u.is_blocked), "blocked_reason": u.blocked_reason,
+            "deleted": u.deleted_at is not None, "created_at": _iso(u.created_at)}
 
 
 def _creation_out(c: models.Creation) -> dict:
@@ -197,6 +246,76 @@ def adjust_credits(user_id: str, payload: CreditAdjustment, db: Session = Depend
     return {"credits_balance": new_balance}
 
 
+class Reason(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=200)
+
+
+@router.post("/users/{user_id}/block")
+def block_user(user_id: str, payload: Reason, db: Session = Depends(get_db),
+               admin: models.AdminUser = Depends(require("block_users"))):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    if user.deleted_at is not None:
+        raise HTTPException(400, "This account was erased")
+    user.is_blocked, user.blocked_reason = True, payload.reason
+    audit(db, admin, "user.block", "user", user.id, {"reason": payload.reason})
+    db.commit()
+    return _user_out(user)
+
+
+@router.post("/users/{user_id}/unblock")
+def unblock_user(user_id: str, payload: Reason, db: Session = Depends(get_db),
+                 admin: models.AdminUser = Depends(require("block_users"))):
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    if user.deleted_at is not None:
+        raise HTTPException(400, "This account was erased")
+    user.is_blocked, user.blocked_reason = False, None
+    audit(db, admin, "user.unblock", "user", user.id, {"reason": payload.reason})
+    db.commit()
+    return _user_out(user)
+
+
+class EraseUser(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=200)
+    confirm_user_id: str  # must equal the user's id, a guard against clicking the wrong account
+
+
+@router.post("/users/{user_id}/erase")
+def erase_user(user_id: str, payload: EraseUser, db: Session = Depends(get_db),
+               admin: models.AdminUser = Depends(require("delete_users"))):
+    """Privacy erasure: removes sign-in methods, poems, videos and shares and blanks the profile.
+    Payment records stay (they are financial records) but no longer identify anyone. Video files in
+    storage (R2) are not deleted by this yet."""
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(404, "User not found")
+    if payload.confirm_user_id != user.id:
+        raise HTTPException(400, "Confirmation does not match the user id")
+    if user.deleted_at is not None:
+        raise HTTPException(400, "Already erased")
+    creation_ids = [c.id for c in db.query(models.Creation.id).filter(models.Creation.user_id == user.id)]
+    poem_ids = [p.id for p in db.query(models.Poem.id).filter(models.Poem.user_id == user.id)]
+    removed = {"creations": len(creation_ids), "poems": len(poem_ids)}
+    if creation_ids:
+        db.query(models.Report).filter(models.Report.creation_id.in_(creation_ids)).delete(synchronize_session=False)
+        db.query(models.Share).filter(models.Share.creation_id.in_(creation_ids)).delete(synchronize_session=False)
+        db.query(models.Creation).filter(models.Creation.id.in_(creation_ids)).delete(synchronize_session=False)
+    if poem_ids:
+        db.query(models.PoemVariant).filter(models.PoemVariant.poem_id.in_(poem_ids)).delete(synchronize_session=False)
+        db.query(models.Poem).filter(models.Poem.id.in_(poem_ids)).delete(synchronize_session=False)
+    db.query(models.Partner).filter(models.Partner.user_id == user.id).delete(synchronize_session=False)
+    db.query(models.UserIdentity).filter(models.UserIdentity.user_id == user.id).delete(synchronize_session=False)
+    user.name, user.email, user.phone = "Deleted user", None, None
+    user.is_blocked, user.blocked_reason = True, "Account erased"
+    user.deleted_at = dt.datetime.utcnow()
+    audit(db, admin, "user.erase", "user", user.id, {"reason": payload.reason, **removed})
+    db.commit()
+    return {"ok": True, **removed}
+
+
 # ----------------------------------------------------------- creations
 
 @router.get("/creations")
@@ -234,10 +353,6 @@ async def retry_render(creation_id: str, db: Session = Depends(get_db),
     audit(db, admin, "creation.retry", "creation", creation.id, {"result": creation.status})
     db.commit()
     return _creation_out(creation)
-
-
-class Reason(BaseModel):
-    reason: str = Field(..., min_length=3, max_length=200)
 
 
 @router.post("/creations/{creation_id}/takedown")
@@ -387,6 +502,8 @@ def get_settings(db: Session = Depends(get_db), admin: models.AdminUser = Depend
 class SettingsPatch(BaseModel):
     payments_enabled: Optional[bool] = None
     cost_per_story_credits: Optional[int] = None
+    signups_enabled: Optional[bool] = None
+    welcome_credits: Optional[int] = None
 
 
 @router.put("/settings")
@@ -422,6 +539,7 @@ class AdminPatch(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
     password: Optional[str] = Field(None, min_length=10, max_length=200)
+    reset_2fa: Optional[bool] = None  # turn off another admin's two-factor login (lost phone)
 
 
 @router.get("/admins")
@@ -464,6 +582,9 @@ def update_admin(admin_id: str, payload: AdminPatch, db: Session = Depends(get_d
             raise HTTPException(400, "There must be at least one active superadmin")
     if target.id == admin.id and (changes.get("is_active") is False or "role" in changes):
         raise HTTPException(400, "You cannot change your own role or disable yourself")
+    if changes.pop("reset_2fa", None):
+        target.totp_secret, target.totp_enabled = None, False
+        audit(db, admin, "admin.reset_2fa", "admin", target.id)
     if "password" in changes:
         target.password_hash = security.hash_password(changes.pop("password"))
         audit(db, admin, "admin.password_reset", "admin", target.id)
@@ -478,12 +599,275 @@ def update_admin(admin_id: str, payload: AdminPatch, db: Session = Depends(get_d
 # ---------------------------------------------------------------- audit
 
 @router.get("/audit")
-def list_audit(limit: int = 50, offset: int = 0, db: Session = Depends(get_db),
-               admin: models.AdminUser = Depends(require("view_audit"))):
+def list_audit(limit: int = 50, offset: int = 0, admin_email: str = "", action: str = "",
+               db: Session = Depends(get_db), admin: models.AdminUser = Depends(require("view_audit"))):
     limit, offset = _page(limit, offset)
     query = db.query(models.AuditLog)
+    if admin_email.strip():
+        query = query.filter(models.AuditLog.admin_email.ilike(f"%{admin_email.strip()}%"))
+    if action.strip():
+        query = query.filter(models.AuditLog.action.ilike(f"{action.strip()}%"))
     total = query.count()
     rows = query.order_by(models.AuditLog.created_at.desc()).limit(limit).offset(offset).all()
     return {"total": total, "items": [
         {"id": r.id, "admin_email": r.admin_email, "action": r.action, "target_type": r.target_type,
          "target_id": r.target_id, "details": r.details, "created_at": _iso(r.created_at)} for r in rows]}
+
+
+# -------------------------------------------------------------- reports
+
+def _report_out(r: models.Report) -> dict:
+    c = r.creation
+    return {"id": r.id, "creation_id": r.creation_id, "reason": r.reason, "details": r.details, "status": r.status,
+            "created_at": _iso(r.created_at), "handled_by": r.handled_by, "handled_at": _iso(r.handled_at),
+            "resolution_note": r.resolution_note,
+            "creation": {"status": c.status, "user_id": c.user_id, "share_link_slug": c.share_link_slug,
+                         "rendered_video_url": c.rendered_video_url,
+                         "poem": c.poem.content if c.poem else None} if c else None}
+
+
+@router.get("/reports")
+def list_reports(status: str = "open", limit: int = 25, offset: int = 0, db: Session = Depends(get_db),
+                 admin: models.AdminUser = Depends(get_current_admin)):
+    limit, offset = _page(limit, offset)
+    query = db.query(models.Report)
+    if status:
+        query = query.filter(models.Report.status == status)
+    total = query.count()
+    rows = query.order_by(models.Report.created_at.desc()).limit(limit).offset(offset).all()
+    return {"total": total, "items": [_report_out(r) for r in rows]}
+
+
+class ResolveReport(BaseModel):
+    action: str  # "takedown" removes the video and its public link; "dismiss" keeps it
+    note: str = Field("", max_length=200)
+
+
+@router.post("/reports/{report_id}/resolve")
+def resolve_report(report_id: str, payload: ResolveReport, db: Session = Depends(get_db),
+                   admin: models.AdminUser = Depends(require("takedown"))):
+    if payload.action not in ("takedown", "dismiss"):
+        raise HTTPException(400, "action must be takedown or dismiss")
+    report = db.query(models.Report).filter(models.Report.id == report_id).first()
+    if not report:
+        raise HTTPException(404, "Report not found")
+    if report.status != "open":
+        raise HTTPException(400, "This report was already handled")
+    now = dt.datetime.utcnow()
+    if payload.action == "takedown":
+        creation = report.creation
+        if creation.status != "removed":
+            creation.status = "removed"
+        # Every open report on the same video is now resolved.
+        for other in db.query(models.Report).filter(models.Report.creation_id == creation.id,
+                                                    models.Report.status == "open").all():
+            other.status, other.handled_by, other.handled_at = "actioned", admin.email, now
+            other.resolution_note = payload.note or "Video taken down"
+    else:
+        report.status, report.handled_by, report.handled_at = "dismissed", admin.email, now
+        report.resolution_note = payload.note or None
+    audit(db, admin, f"report.{payload.action}", "report", report.id,
+          {"creation_id": report.creation_id, "note": payload.note})
+    db.commit()
+    return _report_out(report)
+
+
+# ---------------------------------------------------------------- poems
+
+@router.get("/poems")
+def list_poems(q: str = "", limit: int = 25, offset: int = 0, db: Session = Depends(get_db),
+               admin: models.AdminUser = Depends(get_current_admin)):
+    limit, offset = _page(limit, offset)
+    query = db.query(models.Poem, models.User.name).outerjoin(models.User, models.User.id == models.Poem.user_id)
+    term = q.strip()
+    if term:
+        query = query.filter(models.Poem.content.ilike(f"%{term}%"))
+    total = query.count()
+    rows = query.order_by(models.Poem.created_at.desc()).limit(limit).offset(offset).all()
+    return {"total": total, "items": [
+        {"id": p.id, "user_id": p.user_id, "user_name": name, "source": p.source, "status": p.status,
+         "content": p.content, "created_at": _iso(p.created_at)} for p, name in rows]}
+
+
+# --------------------------------------------------------------- system
+
+@router.get("/system")
+async def system_status(db: Session = Depends(get_db), admin: models.AdminUser = Depends(get_current_admin)):
+    """What is configured and what needs attention. Never returns secrets."""
+    try:
+        db.execute(text("select 1"))
+        database_ok = True
+    except Exception:
+        database_ok = False
+
+    render_url = creations_router.RENDER_SERVICE_URL
+    render = {"configured": bool(render_url), "reachable": None, "queued": None, "running": None}
+    if render_url:
+        try:
+            async with httpx.AsyncClient(timeout=3) as client:
+                r = await client.get(f"{render_url}/health")
+            render.update(reachable=r.status_code == 200)
+            if r.status_code == 200:
+                render.update(queued=r.json().get("queued"), running=r.json().get("running"))
+        except (httpx.HTTPError, ValueError):
+            render["reachable"] = False
+
+    now = dt.datetime.utcnow()
+    attention = {
+        "open_reports": db.query(func.count(models.Report.id)).filter(models.Report.status == "open").scalar(),
+        "failed_renders_24h": db.query(func.count(models.Creation.id)).filter(
+            models.Creation.status == "failed", models.Creation.created_at >= now - dt.timedelta(hours=24)).scalar(),
+        "stuck_renders": db.query(func.count(models.Creation.id)).filter(
+            models.Creation.status == "rendering", models.Creation.created_at <= now - dt.timedelta(minutes=15)).scalar(),
+    }
+    dev_bypass = os.getenv("AUTH_DEV_BYPASS", "false").lower() == "true"
+    warnings = []
+    if dev_bypass:
+        warnings.append("AUTH_DEV_BYPASS is on: anyone can act as any user. Turn it off outside local development.")
+    if not os.getenv("CORS_ORIGINS", "").strip() and not dev_bypass:
+        warnings.append("CORS_ORIGINS is empty: browsers on other websites cannot call the API (fine unless the checkout page is hosted separately).")
+    if not os.getenv("FIREBASE_PROJECT_ID"):
+        warnings.append("FIREBASE_PROJECT_ID is not set: real sign-in cannot work.")
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        warnings.append("ANTHROPIC_API_KEY is not set: poems are demo text.")
+    if settings_store.get_value(db, "payments_enabled") and not (os.getenv("CASHFREE_CLIENT_ID") and os.getenv("CASHFREE_CLIENT_SECRET")):
+        warnings.append("Payments are enabled but the Cashfree keys are missing.")
+    if render_url and render["reachable"] is False:
+        warnings.append("The render service is not reachable: new videos will fail.")
+    if not render_url:
+        warnings.append("RENDER_SERVICE_URL is not set: videos get placeholder links and are not really rendered.")
+    return {
+        "database_ok": database_ok,
+        "render_service": render,
+        "integrations": {
+            "claude_api": bool(os.getenv("ANTHROPIC_API_KEY")),
+            "firebase_auth": bool(os.getenv("FIREBASE_PROJECT_ID")),
+            "cashfree": bool(os.getenv("CASHFREE_CLIENT_ID") and os.getenv("CASHFREE_CLIENT_SECRET")),
+            "cashfree_environment": os.getenv("CASHFREE_ENV", "sandbox"),
+        },
+        "environment": {"auth_dev_bypass": dev_bypass, "origin_verify": bool(os.getenv("ORIGIN_VERIFY_SECRET")),
+                        "cors_origins": [o for o in os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]},
+        "settings": settings_store.all_values(db),
+        "attention": attention,
+        "warnings": warnings,
+    }
+
+
+# -------------------------------------------------------------- exports
+
+def _csv_cell(value) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        return str(value)  # numbers (including negative credits) stay numbers
+    # Stops spreadsheet programs from running a text cell that starts like a formula.
+    return "'" + value if value[:1] in ("=", "+", "-", "@", "\t", "\r") else value
+
+
+def _csv_response(filename: str, header: list[str], rows) -> Response:
+    out = io.StringIO()
+    w = csv.writer(out)
+    w.writerow(header)
+    for row in rows:
+        w.writerow([_csv_cell(v) for v in row])
+    return Response(out.getvalue(), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"})
+
+
+@router.get("/export/users.csv")
+def export_users(db: Session = Depends(get_db), admin: models.AdminUser = Depends(require("export_data"))):
+    users = db.query(models.User).order_by(models.User.created_at).all()
+    audit(db, admin, "export.users", "users", None, {"rows": len(users)})
+    db.commit()
+    return _csv_response("users.csv",
+                         ["id", "name", "email", "phone", "sign_in_methods", "credits", "blocked", "erased", "created_at"],
+                         [[u.id, u.name, u.email, u.phone, " ".join(sorted({i.provider for i in u.identities})),
+                           u.credits_balance, u.is_blocked, u.deleted_at is not None, _iso(u.created_at)] for u in users])
+
+
+@router.get("/export/transactions.csv")
+def export_transactions(db: Session = Depends(get_db), admin: models.AdminUser = Depends(require("export_data"))):
+    txns = db.query(models.CreditTransaction).order_by(models.CreditTransaction.created_at).all()
+    audit(db, admin, "export.transactions", "transactions", None, {"rows": len(txns)})
+    db.commit()
+    return _csv_response("transactions.csv",
+                         ["id", "user_id", "status", "credits", "amount_inr", "cashfree_order_id", "note", "created_at", "paid_at"],
+                         [[t.id, t.user_id, t.status, t.credits, t.amount_inr, t.cashfree_order_id, t.note,
+                           _iso(t.created_at), _iso(t.paid_at)] for t in txns])
+
+
+# ----------------------------------------- my account: password and 2FA
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=10, max_length=200)
+
+
+@router.post("/me/password")
+def change_password(payload: PasswordChange, db: Session = Depends(get_db),
+                    admin: models.AdminUser = Depends(get_current_admin)):
+    if not security.check_password(payload.current_password, admin.password_hash):
+        raise HTTPException(400, "Current password is wrong")
+    if payload.new_password == payload.current_password:
+        raise HTTPException(400, "Choose a different password")
+    admin.password_hash = security.hash_password(payload.new_password)
+    audit(db, admin, "admin.change_password", "admin", admin.id)
+    db.commit()
+    return {"ok": True}
+
+
+class PasswordOnly(BaseModel):
+    password: str
+
+
+@router.post("/me/2fa/setup")
+def twofa_setup(payload: PasswordOnly, db: Session = Depends(get_db),
+                admin: models.AdminUser = Depends(get_current_admin)):
+    """Starts two-factor setup: returns a secret to add to an authenticator app. It only
+    takes effect after /me/2fa/enable confirms a code."""
+    if not security.check_password(payload.password, admin.password_hash):
+        raise HTTPException(400, "Password is wrong")
+    if admin.totp_enabled:
+        raise HTTPException(400, "Two-factor login is already on")
+    secret = pyotp.random_base32()
+    admin.totp_secret = secret
+    db.commit()
+    uri = pyotp.TOTP(secret).provisioning_uri(name=admin.email, issuer_name="Tweezers admin")
+    return {"secret": secret, "otpauth_uri": uri}
+
+
+class CodeOnly(BaseModel):
+    code: str
+
+
+@router.post("/me/2fa/enable")
+def twofa_enable(payload: CodeOnly, db: Session = Depends(get_db),
+                 admin: models.AdminUser = Depends(get_current_admin)):
+    if not admin.totp_secret:
+        raise HTTPException(400, "Start the setup first")
+    if not pyotp.TOTP(admin.totp_secret).verify(payload.code.strip(), valid_window=1):
+        raise HTTPException(400, "That code is not right")
+    admin.totp_enabled = True
+    audit(db, admin, "admin.2fa_enabled", "admin", admin.id)
+    db.commit()
+    return _admin_out(admin)
+
+
+class PasswordAndCode(BaseModel):
+    password: str
+    code: str
+
+
+@router.post("/me/2fa/disable")
+def twofa_disable(payload: PasswordAndCode, db: Session = Depends(get_db),
+                  admin: models.AdminUser = Depends(get_current_admin)):
+    if not admin.totp_enabled:
+        raise HTTPException(400, "Two-factor login is not on")
+    if not security.check_password(payload.password, admin.password_hash):
+        raise HTTPException(400, "Password is wrong")
+    if not pyotp.TOTP(admin.totp_secret).verify(payload.code.strip(), valid_window=1):
+        raise HTTPException(400, "That code is not right")
+    admin.totp_secret, admin.totp_enabled = None, False
+    audit(db, admin, "admin.2fa_disabled", "admin", admin.id)
+    db.commit()
+    return _admin_out(admin)

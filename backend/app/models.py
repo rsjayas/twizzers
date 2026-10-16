@@ -22,6 +22,9 @@ class User(Base):
     name = Column(String, nullable=True)
     auth_provider = Column(String, default="firebase")
     credits_balance = Column(Integer, default=0, nullable=False)
+    is_blocked = Column(Boolean, default=False, nullable=False)
+    blocked_reason = Column(String, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)  # set when an admin erased the account's data
     created_at = Column(DateTime, default=dt.datetime.utcnow)
 
     poems = relationship("Poem", back_populates="user")
@@ -177,6 +180,8 @@ class AdminUser(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=dt.datetime.utcnow)
     last_login_at = Column(DateTime, nullable=True)
+    totp_secret = Column(String, nullable=True)         # authenticator-app secret (2FA)
+    totp_enabled = Column(Boolean, default=False, nullable=False)
 
 
 class AuditLog(Base):
@@ -199,3 +204,20 @@ class Setting(Base):
     value = Column(String, nullable=False)
     updated_at = Column(DateTime, default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow)
     updated_by = Column(String, nullable=True)
+
+
+class Report(Base):
+    """A viewer's report of a shared video (from the public share page)."""
+    __tablename__ = "reports"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    creation_id = Column(UUID(as_uuid=False), ForeignKey("creations.id"), nullable=False, index=True)
+    reason = Column(String, nullable=False)       # inappropriate | spam | harassment | other
+    details = Column(String, nullable=True)
+    reporter_hash = Column(String, nullable=True)  # salted hash of the reporter's IP, for rate limits
+    status = Column(String, default="open", nullable=False, index=True)  # open | actioned | dismissed
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+    handled_by = Column(String, nullable=True)
+    handled_at = Column(DateTime, nullable=True)
+    resolution_note = Column(String, nullable=True)
+
+    creation = relationship("Creation")

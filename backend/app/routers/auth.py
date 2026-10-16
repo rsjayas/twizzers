@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import firebase_auth, models, schemas
+from ..accounts import create_user, ensure_active
 from ..database import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -37,10 +38,9 @@ def signup(payload: schemas.UserCreate, db: Session = Depends(get_db)):
         existing = db.query(models.User).filter(models.User.email == payload.email).first()
 
     if existing:
-        return existing
+        return ensure_active(existing)
 
-    user = models.User(phone=payload.phone, email=payload.email, name=payload.name)
-    db.add(user)
+    user = create_user(db, phone=payload.phone, email=payload.email, name=payload.name)
     db.commit()
     db.refresh(user)
     return user

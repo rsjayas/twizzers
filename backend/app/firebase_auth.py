@@ -18,6 +18,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import models
+from .accounts import create_user, ensure_active
 from .database import get_db
 
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "")
@@ -74,7 +75,7 @@ def get_or_create_user(db: Session, claims: dict, name: str | None = None) -> mo
 
     identity = db.query(models.UserIdentity).filter(models.UserIdentity.firebase_uid == uid).first()
     if identity:
-        return identity.user
+        return ensure_active(identity.user)
 
     user = None
     if phone:
@@ -83,10 +84,9 @@ def get_or_create_user(db: Session, claims: dict, name: str | None = None) -> mo
         user = db.query(models.User).filter(func.lower(models.User.email) == email).first()
 
     if not user:
-        user = models.User(phone=phone, email=email if email_verified else None, name=name, auth_provider=provider)
-        db.add(user)
-        db.flush()
+        user = create_user(db, phone=phone, email=email if email_verified else None, name=name, auth_provider=provider)
     else:
+        ensure_active(user)
         # Fill in details we did not have yet.
         if email and email_verified and not user.email:
             user.email = email
@@ -112,5 +112,5 @@ def get_current_user(
         user = db.query(models.User).filter(models.User.id == token[4:]).first()
         if not user:
             raise HTTPException(401, "Unknown dev user")
-        return user
+        return ensure_active(user)
     return get_or_create_user(db, verify_id_token(token))

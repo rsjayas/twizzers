@@ -25,4 +25,6 @@ RUN useradd --create-home --uid 10001 app
 USER app
 
 EXPOSE 8000
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Optional local conveniences, off by default: SEED_ON_START=true loads the placeholder templates, music
+# and credit packs; ADMIN_BOOTSTRAP_EMAIL/PASSWORD create the first admin when none exists.
+CMD ["sh", "-c", "alembic upgrade head && python -m app.admin.cli bootstrap-admin && ([ \"$SEED_ON_START\" != true ] || python seed_data.py) && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

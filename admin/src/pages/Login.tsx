@@ -6,6 +6,8 @@ export function LoginPage() {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [code, setCode] = useState('');
+  const [needsCode, setNeedsCode] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,9 +16,14 @@ export function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      await login(email, password);
+      await login(email, password, needsCode ? code : undefined);
     } catch (err) {
-      setError(errMsg(err));
+      if (errMsg(err) === '2fa_required') {
+        setNeedsCode(true);
+        setError(null);
+      } else {
+        setError(errMsg(err));
+      }
     } finally {
       setBusy(false);
     }
@@ -28,6 +35,9 @@ export function LoginPage() {
         <h1>Tweezers admin</h1>
         <label>Email<input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></label>
         <label>Password<input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+        {needsCode ? (
+          <label>Code from your authenticator app<input inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} maxLength={6} required autoFocus /></label>
+        ) : null}
         <ErrorBox message={error} />
         <Button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button>
       </form>

@@ -14,6 +14,8 @@ from . import models
 DEFINITIONS = {
     "payments_enabled": ("bool", lambda: os.getenv("PAYMENTS_ENABLED", "false").lower() == "true"),
     "cost_per_story_credits": ("int", lambda: int(os.getenv("COST_PER_STORY_CREDITS", "5"))),
+    "signups_enabled": ("bool", lambda: True),          # false: no new accounts (existing users keep working)
+    "welcome_credits": ("int", lambda: 0),              # credits given to every new account
 }
 
 

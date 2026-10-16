@@ -43,7 +43,9 @@ Cloudflare's free proxy is a simpler alternative that does the same job (hidden 
 - Security headers on every response, no caching of auth, credits and admin API responses.
 - CORS is limited to `CORS_ORIGINS` (empty means none; local dev with `AUTH_DEV_BYPASS=true` allows all).
 - Optional `ORIGIN_VERIFY_SECRET` check (above).
-- Admin login throttling (in memory, per process) and bcrypt passwords.
+- Admin login throttling (in memory, per process), bcrypt passwords, optional two-factor login (authenticator app) per admin, roles re-checked on every request, every change in the audit log.
+- Public "report this video" on the share page, limited to 5 reports an hour per reporter and one per video per day; admins can block users and take videos down.
+- Admin CSV exports neutralise spreadsheet formulas and are logged.
 - Poem text on the share page is HTML-escaped.
 
 ## Known gaps
@@ -52,3 +54,5 @@ Cloudflare's free proxy is a simpler alternative that does the same job (hidden 
 - The render service image runs as root; Docker images are not built or scanned yet.
 - No dependency vulnerability scanning in CI (there is no CI yet).
 - Share-link videos are public by URL (random names, but not private).
+- Erasing a user removes database records but not video files already in storage (R2).
+- The reporter limit uses the client IP from `X-Forwarded-For`; if the API is reachable directly (no CDN in front, `ORIGIN_VERIFY_SECRET` unset) that header can be faked.

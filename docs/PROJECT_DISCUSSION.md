@@ -156,7 +156,7 @@ Alternative: everything on AWS Mumbai (ap-south-1) for best India latency, at mo
 
 ## 8b. Admin dashboard (decided)
 
-In-house admin web app (`admin/`), served by the backend at `/admin` so it needs no separate hosting. Roles: superadmin (everything), support (users, credit adjustments, retry renders, takedowns), content (templates, music, packs). Every change is written to an audit log. Payments on/off and the poem price are runtime settings editable there without a redeploy. Possible later: split it onto static hosting (e.g. Cloudflare Pages) or put it behind a VPN/IP allowlist.
+In-house admin web app (`admin/`), served by the backend at `/admin` so it needs no separate hosting. Roles: superadmin (everything), support (users, credits, blocking, retry renders, takedowns, reports, exports), content (templates, music, packs). Every change is written to an audit log. Payments on/off, the poem price, new sign-ups and welcome credits are runtime settings editable there without a redeploy. Moderation: viewers report videos from the public page and admins review them under Reports; users can be blocked, and their data erased on request. Admins can turn on two-factor login. Not done: uploading files for templates/music (URLs only), refunds through Cashfree (use manual credit adjustments), deleting video files from storage when a user is erased. Possible later: split it onto static hosting (e.g. Cloudflare Pages) or put it behind a VPN/IP allowlist.
 
 ---
 
