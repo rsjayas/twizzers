@@ -386,3 +386,16 @@ Our whole stack (API, admin, renderer) fits on one 2 vCPU, 4 GB machine (API 90 
 Add about $2.7 a month for a 30 GB gp3 disk ($0.0912 per GB-month in Mumbai) and about $3.65 for the public IPv4 address ($0.005 per hour). Internet data transfer was not verified (check the pricing page).
 
 All-in for a t3.medium: about **$39 a month**, plus a possible CPU-credit charge. Rendering uses about 360 CPU-seconds per video: at early launch (1,500 videos, about 150 vCPU-hours a month) that is within what a t3.medium earns, so little or no extra charge, if renders are spread out. At growth (15,000 videos, about 1,500 vCPU-hours) it would exceed both the baseline (extra about $60 a month) and the machine's total capacity, so use a c-type machine or several. One 2 vCPU machine can render about 20 videos an hour (about 14,000 a month if never idle).
+
+### Do we need a load balancer or a NAT gateway on AWS?
+
+Everything we call from the servers is on the public internet (Neon, the Claude API, Cloudflare R2, Cashfree, Google/Firebase), so the servers only need outbound internet access, plus inbound HTTPS for the app, the Cashfree webhook and the admin dashboard.
+
+| Setup | Load balancer | NAT gateway |
+|---|---|---|
+| One EC2 machine in a public subnet | Not needed: run Caddy or nginx on the machine for HTTPS, or put Cloudflare's free proxy in front | Not needed: the machine has a public IP and reaches the internet directly |
+| Lightsail containers | Included in the price | Not needed |
+| ECS on Fargate | An Application Load Balancer is needed for a stable HTTPS address and for more than one API task (about $16-22 a month); one task with its own public address works without it but the address changes when it restarts | Not needed if tasks are in public subnets with a public IP; needed (about $30+ a month, unverified) only if tasks are in private subnets |
+| Lambda | API Gateway or a function URL replaces it | Not needed if the functions are not attached to a VPC; attaching one (needed for private databases like Aurora) means they lose internet access without a NAT gateway or endpoints |
+
+Rules of thumb: keep servers in public subnets with strict security groups (only 80/443 inbound), and avoid private subnets unless you need them, because NAT gateways and VPC endpoints add fixed monthly cost.
