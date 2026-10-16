@@ -28,7 +28,7 @@ Status legend: **Built** = code exists and was exercised in tests; **Partial** =
 | Media storage + CDN | **Cloudflare R2** + Cloudflare CDN (no egress fees) | Partial: the render service uploads to R2 when `R2_*` is set (tested against a fake S3 endpoint only; real R2 and CDN domain not set up) |
 | Music | Licensed library (**Epidemic Sound** or **Artlist**) | Planned. Seed data uses placeholder URLs |
 | Animated templates | Lottie / Rive files | Planned. Seed data uses placeholder URLs; the current video uses a code-drawn gradient with falling petals |
-| Mobile app | **React Native (Expo, TypeScript)**; distributed on Google Play (App Store later) | Blank scaffold only (`mobile/`) |
+| Mobile app | **React Native (Expo, TypeScript)**; distributed on Google Play (App Store later) | Partial: all create-flow screens written, typechecks and bundles for Android; not run on a device; Firebase login not wired (dev login only) |
 | Credits checkout page hosting | **Cloudflare Pages** (static file on its own domain) | Planned |
 | Backend API hosting | Render, Railway or Fly.io (pick a region near India) | Planned |
 | Render worker hosting | Separate worker server, or Remotion Lambda on AWS | Planned |
@@ -85,7 +85,7 @@ Components in the repo:
 | Path | What it is |
 |---|---|
 | `backend/` | FastAPI + SQLAlchemy API, Alembic migrations, Dockerfile |
-| `mobile/` | React Native (Expo) app, blank template so far |
+| `mobile/` | React Native (Expo) app: login, create flow, render status, share |
 | `render-service/` | Remotion composition + HTTP service that queues and renders jobs, then calls the backend back |
 | `web-checkout/credits.html` | Standalone credits purchase page |
 | `frontend-demo/index.html` | Local demo page for the create flow (needs `AUTH_DEV_BYPASS=true`) |
@@ -101,7 +101,7 @@ Components in the repo:
 ### Security model
 
 - Every user-owned route needs `Authorization: Bearer <Firebase ID token>` and checks that the row belongs to the caller (other users get 404).
-- Public routes: templates, music, credit packs, `/creations/share/{slug}`, `/health`, and the Cashfree webhook (authenticated by its HMAC signature instead).
+- Public routes: templates, music, credit packs, `/creations/share/{slug}`, `/v/{slug}` (recipient HTML page), `/health`, and the Cashfree webhook (authenticated by its HMAC signature instead).
 - `AUTH_DEV_BYPASS=true` is for local demos only; it must stay off everywhere else.
 - Known gaps: CORS allows all origins; secrets must live in the host's environment settings.
 
@@ -149,7 +149,7 @@ sequenceDiagram
 
 Today: users can also write their own poem (`POST /poems/write`). Credits are only checked and deducted when `PAYMENTS_ENABLED=true`; deduction happens after generation succeeds, so a failed AI call never charges.
 
-Recipient view: anyone with the link calls `GET /creations/share/{slug}` (no login) and the view counter goes up.
+Recipient view: the shared link is `/v/{slug}`, a public HTML page (video + poem, no login, poem text HTML-escaped); each open bumps the view counter. `GET /creations/share/{slug}` is the same data as JSON.
 
 ### 3.2 Buy credits (only when payments are on)
 

@@ -1,20 +1,64 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { CreateScreen } from './src/screens/CreateScreen';
+import { LoginScreen } from './src/screens/LoginScreen';
+import { PickPoemScreen } from './src/screens/PickPoemScreen';
+import { ResultScreen } from './src/screens/ResultScreen';
+import { StyleScreen } from './src/screens/StyleScreen';
+import type { Creation, Poem, User } from './src/types';
+
+// A small state machine instead of a navigation library: login -> create ->
+// (pick variant) -> style -> result.
+type Step =
+  | { name: 'login' }
+  | { name: 'create' }
+  | { name: 'pick'; poem: Poem }
+  | { name: 'style'; poem: Poem }
+  | { name: 'result'; poem: Poem; creation: Creation };
 
 export default function App() {
+  const [, setUser] = useState<User | null>(null);
+  const [step, setStep] = useState<Step>({ name: 'login' });
+
+  let screen: React.ReactElement;
+  switch (step.name) {
+    case 'login':
+      screen = <LoginScreen onSignedIn={(u) => { setUser(u); setStep({ name: 'create' }); }} />;
+      break;
+    case 'create':
+      screen = (
+        <CreateScreen
+          onPoem={(poem) => setStep(poem.status === 'finalized' ? { name: 'style', poem } : { name: 'pick', poem })}
+        />
+      );
+      break;
+    case 'pick':
+      screen = (
+        <PickPoemScreen
+          poem={step.poem}
+          onChosen={(poem) => setStep({ name: 'style', poem })}
+          onBack={() => setStep({ name: 'create' })}
+        />
+      );
+      break;
+    case 'style':
+      screen = (
+        <StyleScreen
+          poem={step.poem}
+          onCreated={(creation) => setStep({ name: 'result', poem: step.poem, creation })}
+          onBack={() => setStep({ name: 'create' })}
+        />
+      );
+      break;
+    case 'result':
+      screen = <ResultScreen initial={step.creation} poem={step.poem} onAgain={() => setStep({ name: 'create' })} />;
+      break;
+  }
+
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <>
+      {screen}
+      <StatusBar style="dark" />
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});

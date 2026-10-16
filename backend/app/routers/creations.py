@@ -1,8 +1,10 @@
 import hmac
+import html
 import os
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -10,6 +12,9 @@ from ..database import get_db
 from ..firebase_auth import get_current_user
 
 router = APIRouter(prefix="/creations", tags=["creations"])
+
+# Public recipient page (no /creations prefix): GET /v/{slug}
+viewer_router = APIRouter(tags=["viewer"])
 
 # Render service (see render-service/). When RENDER_SERVICE_URL is unset the
 # creation is marked ready immediately with a placeholder URL, so the rest of
@@ -130,3 +135,41 @@ def log_share_event(
     db.add(share)
     db.commit()
     return {"ok": True}
+
+
+@viewer_router.get("/v/{slug}", response_class=HTMLResponse)
+def view_creation(slug: str, db: Session = Depends(get_db)):
+    """Public page the recipient opens from a shared link: the video and poem."""
+    creation = db.query(models.Creation).filter(models.Creation.share_link_slug == slug).first()
+    if not creation:
+        raise HTTPException(404, "Not found")
+    creation.recipient_view_count = (creation.recipient_view_count or 0) + 1
+    db.commit()
+
+    poem = html.escape(creation.poem.content or "") if creation.poem else ""
+    if creation.status == "ready" and creation.rendered_video_url:
+        poster = f' poster="{html.escape(creation.thumbnail_url, quote=True)}"' if creation.thumbnail_url else ""
+        media = (
+            f'<video controls playsinline autoplay loop{poster} '
+            f'src="{html.escape(creation.rendered_video_url, quote=True)}"></video>'
+        )
+    elif creation.status == "failed":
+        media = "<p>This video could not be made, but the poem is below.</p>"
+    else:
+        media = "<p>Your video is still being made. Refresh in a minute.</p>"
+
+    return f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A poem for you - Tweezers</title>
+<style>
+body{{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;background:#fff0f4;
+font-family:Georgia,'Noto Serif',serif;color:#3a1f2b;padding:24px 16px;box-sizing:border-box}}
+video{{width:100%;max-width:380px;border-radius:18px;box-shadow:0 8px 24px rgba(209,65,107,.2)}}
+pre{{white-space:pre-wrap;font-family:inherit;font-size:1.1rem;line-height:1.5;text-align:center;max-width:380px}}
+small{{color:#8a6070;margin-top:16px}}
+</style></head><body>
+{media}
+<pre>{poem}</pre>
+<small>Made with Tweezers - two bodies, one soul</small>
+</body></html>"""

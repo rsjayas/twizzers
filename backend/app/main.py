@@ -21,6 +21,7 @@ app.include_router(poems.router)
 app.include_router(templates.router)
 app.include_router(music.router)
 app.include_router(creations.router)
+app.include_router(creations.viewer_router)
 app.include_router(credits.router)
 
 
