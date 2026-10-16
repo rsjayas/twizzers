@@ -24,8 +24,8 @@ Status legend: **Built** = code exists and was exercised in tests; **Partial** =
 | Login (phone OTP) | **Firebase Auth**. App signs in with Firebase, backend verifies the ID token with `google-auth` | Built on the backend (mocked token check); app login screen not built |
 | Database | **PostgreSQL**: **Neon** in production, Postgres 16 container locally. Schema via **Alembic** | Built and run on local Postgres 16; Neon not set up yet |
 | Payments | **Cashfree Payments** (orders API, JS checkout SDK, signed webhook). Credits are bought on a standalone web page, outside the app | Partial: tested with a mocked Cashfree only. Off by default (`PAYMENTS_ENABLED=false`) |
-| Video rendering | **Remotion** (React) + headless Chromium + FFmpeg, self-hosted Node service | Built and run end to end locally (API to render service to callback); not deployed, no R2 upload yet |
-| Media storage + CDN | **Cloudflare R2** + Cloudflare CDN (no egress fees) | Planned. Renders are currently written to local disk |
+| Video rendering | **Remotion** (React) + headless Chromium + FFmpeg, self-hosted Node service | Built and run end to end locally (API to render service to callback); Dockerfile written but not built; not deployed |
+| Media storage + CDN | **Cloudflare R2** + Cloudflare CDN (no egress fees) | Partial: the render service uploads to R2 when `R2_*` is set (tested against a fake S3 endpoint only; real R2 and CDN domain not set up) |
 | Music | Licensed library (**Epidemic Sound** or **Artlist**) | Planned. Seed data uses placeholder URLs |
 | Animated templates | Lottie / Rive files | Planned. Seed data uses placeholder URLs; the current video uses a code-drawn gradient with falling petals |
 | Mobile app | **React Native (Expo, TypeScript)**; distributed on Google Play (App Store later) | Blank scaffold only (`mobile/`) |
@@ -183,7 +183,7 @@ The HTTP service (`src/server.mjs`) accepts jobs on `POST /render` (shared-secre
 
 Verified locally (real Postgres, API, render service): creating a creation returned `rendering`, then `ready` with a playable 12.8 second 1080x1920 H.264 file and a thumbnail; a callback or render request with a wrong secret got 401. The seed music URLs are fake, so that run exercised the no-music retry. Audio with a real music URL has not been tested.
 
-Still to do for production: upload to Cloudflare R2 (files are on local disk only), a Dockerfile and worker host, real Lottie/Rive templates, licensed music, (or Remotion Lambda instead of a worker), and checking Remotion's licensing terms for commercial use before launch.
+Uploads go to Cloudflare R2 when `R2_*` is set (verified against a fake S3 endpoint, not real R2); otherwise files stay on local disk. The `Dockerfile` (Chromium libraries, Noto fonts for Hindi, Remotion's headless Chrome) has not been built yet. Still to do for production: pick and set up the worker host, real Lottie/Rive templates, licensed music, (or Remotion Lambda instead of a worker), and checking Remotion's licensing terms for commercial use before launch.
 
 ---
 
@@ -201,6 +201,7 @@ Still to do for production: upload to Cloudflare R2 (files are on local disk onl
 | `RENDER_SECRET` | backend, render-service | Shared secret for render jobs and result callbacks |
 | `BACKEND_PUBLIC_URL` | backend | How the render service reaches the API for callbacks |
 | `PORT`, `OUTPUT_DIR`, `PUBLIC_BASE_URL`, `BROWSER_EXECUTABLE` | render-service | Port, output folder, public file URL base, optional Chromium path |
+| `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET`, `R2_PUBLIC_BASE_URL` | render-service | Cloudflare R2 upload; all five needed, otherwise local files |
 | `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET` | backend | Cashfree API keys (the secret also signs webhooks) |
 | `CASHFREE_ENV` | backend | `sandbox` or `production` |
 | `CASHFREE_NOTIFY_URL` | backend | Optional webhook URL sent with each order |

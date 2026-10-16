@@ -84,7 +84,8 @@ export const PoemVideo = ({ poem, recipient, moodTags, musicUrl }) => {
     <AbsoluteFill
       style={{
         background: `linear-gradient(160deg, ${bg}, ${c2})`,
-        fontFamily: "Georgia, 'Times New Roman', serif",
+        // Noto covers Hindi (Devanagari) and other Indian scripts on Linux hosts.
+        fontFamily: "Georgia, 'Noto Serif', 'Noto Serif Devanagari', 'Noto Sans Devanagari', serif",
       }}
     >
       {musicUrl ? <Html5Audio src={musicUrl} volume={(f) => interpolate(f, [0, 30, durationInFrames - 45, durationInFrames], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" })} /> : null}

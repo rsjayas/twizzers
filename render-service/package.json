@@ -9,6 +9,7 @@
     "typecheck": "echo 'plain JS, nothing to typecheck'"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1152.0",
     "@remotion/bundler": "^4.0.536",
     "@remotion/cli": "^4.0.536",
     "@remotion/media-utils": "^4.0.536",

@@ -9,7 +9,8 @@
 // the same shared secret.
 //
 // Env: RENDER_SECRET (required), PORT (4000), OUTPUT_DIR (./out),
-//      PUBLIC_BASE_URL (http://localhost:PORT), BROWSER_EXECUTABLE (optional).
+//      PUBLIC_BASE_URL (http://localhost:PORT), BROWSER_EXECUTABLE (optional),
+//      R2_* (see storage.mjs) to upload results to Cloudflare R2.
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
@@ -17,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
+import { r2Enabled, uploadFile } from "./storage.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 4000);
@@ -85,7 +87,16 @@ async function renderJob(job) {
     imageFormat: "jpeg",
     output: path.join(OUTPUT_DIR, thumbFile),
   });
-  // TODO: upload both files to Cloudflare R2 and return the CDN URLs instead.
+  if (r2Enabled) {
+    const videoPath = path.join(OUTPUT_DIR, videoFile);
+    const thumbPath = path.join(OUTPUT_DIR, thumbFile);
+    const video_url = await uploadFile(videoPath, `renders/${videoFile}`, "video/mp4");
+    const thumbnail_url = await uploadFile(thumbPath, `renders/${thumbFile}`, "image/jpeg");
+    // Uploaded: the local copies are no longer needed.
+    fs.rmSync(videoPath, { force: true });
+    fs.rmSync(thumbPath, { force: true });
+    return { video_url, thumbnail_url };
+  }
   return { video_url: `${PUBLIC_BASE_URL}/files/${videoFile}`, thumbnail_url: `${PUBLIC_BASE_URL}/files/${thumbFile}` };
 }
 
