@@ -1,8 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .database import Base, engine
-from . import models  # noqa: F401 - ensures models are registered before create_all
 from .routers import auth, poems, templates, music, creations, credits
 
 app = FastAPI(title="Tweezers API", version="0.1.0")
@@ -15,10 +13,7 @@ app.add_middleware(
 )
 
 
-@app.on_event("startup")
-def on_startup():
-    # MVP: create tables directly. Move to Alembic migrations before production.
-    Base.metadata.create_all(bind=engine)
+# Schema is managed by Alembic: run `alembic upgrade head` (the Docker image does this on start).
 
 
 app.include_router(auth.router)

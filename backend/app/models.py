@@ -17,10 +17,11 @@ def gen_uuid():
 class User(Base):
     __tablename__ = "users"
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    firebase_uid = Column(String, unique=True, nullable=True, index=True)
     phone = Column(String, unique=True, nullable=True)
     email = Column(String, unique=True, nullable=True)
     name = Column(String, nullable=True)
-    auth_provider = Column(String, default="otp")
+    auth_provider = Column(String, default="firebase")
     credits_balance = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=dt.datetime.utcnow)
 

@@ -109,8 +109,7 @@ Question raised: can Meta AI be used for image generation?
 ## 6. Database
 
 - **PostgreSQL** is the database. Docker Compose runs Postgres 16; the backend connects through `DATABASE_URL`.
-- Tests so far ran on SQLite; the first real Postgres run is still to come.
-- Tables are currently created with `create_all` on startup.
+- Tables are now created by Alembic migrations (`alembic upgrade head`), no longer by `create_all`. The scaffold's create, credits (mocked Cashfree) and Firebase-login flows have been run against a real Postgres 16.
 
 ### Alembic migrations
 Alembic tracks database structure changes in versioned files, like Git for the schema.
@@ -156,10 +155,10 @@ Alternative: everything on AWS Mumbai (ap-south-1) for best India latency, at mo
 
 ## 9. Next steps (suggested order)
 
-1. Add **Alembic** and generate the first migration.
+1. ~~Add Alembic and generate the first migration.~~ Done (`backend/alembic/`, migration `0001`).
 2. Build the **render service** (Remotion) so creations produce a real video.
 3. Build the **mobile app** (React Native / Expo, scaffold done in `mobile/`) against the existing API.
-4. Replace the auth stub with Firebase phone-OTP login (verify Firebase ID tokens in the backend).
+4. Firebase phone-OTP login: backend token verification done (`/auth/firebase`); still to do: app login screen, protect the other routes with `get_current_user` instead of client-sent `user_id`, remove the legacy `/auth/signup`.
 5. Add deployment config (API host, Neon, Cloudflare).
 6. Redo the **Tweezers logo/brand**; check trademark and domain.
 7. Phase 0 validation: landing page, waitlist, hand-made samples.

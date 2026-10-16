@@ -8,7 +8,7 @@ twizzers (originally scaffolded under the name "Tweezers"; see `SCAFFOLD.md` for
 
 ## Layout
 
-- `backend/` - FastAPI + SQLAlchemy + Postgres API. `app/main.py` registers routers in `app/routers/` (auth, poems, templates, music, creations, credits). `app/ai.py` calls the Anthropic API for poems (falls back to demo text without a key). `app/cashfree_client.py` handles Cashfree orders, order-status checks and webhook signature verification.
+- `backend/` - FastAPI + SQLAlchemy + Postgres API. `app/main.py` registers routers in `app/routers/` (auth, poems, templates, music, creations, credits). `app/ai.py` calls the Anthropic API for poems (falls back to demo text without a key). `app/firebase_auth.py` verifies Firebase ID tokens (`POST /auth/firebase`, `GET /auth/me`, `get_current_user` dependency). `alembic/` holds DB migrations. `app/cashfree_client.py` handles Cashfree orders, order-status checks and webhook signature verification.
 - `frontend-demo/index.html` - plain HTML/JS page exercising the full create flow against the API.
 - `web-checkout/credits.html` - standalone credit-purchase page, hosted outside the app on purpose (avoids Google Play billing).
 - `mobile/` - React Native app (Expo, TypeScript), currently the blank template. App scheme is `tweezers`. Check the versioned Expo docs before writing Expo code (see `mobile/AGENTS.md`); add packages with `npx expo install`. Typecheck with `npx tsc --noEmit`.
@@ -19,13 +19,14 @@ twizzers (originally scaffolded under the name "Tweezers"; see `SCAFFOLD.md` for
 
 - Run everything: `cp backend/.env.example backend/.env && docker compose up --build`, then `docker compose exec backend python seed_data.py`. API docs at `http://localhost:8000/docs`.
 - Run without Docker: in `backend/`, `pip install -r requirements.txt`, set `DATABASE_URL`, then `uvicorn app.main:app --reload` and `python seed_data.py`.
-- There are no tests or lint config yet.
+- Migrations: the schema is managed by Alembic (Docker runs `alembic upgrade head` on start). After changing `models.py`, in `backend/` run `alembic revision --autogenerate -m "msg"`, review the file, then `alembic upgrade head`.
+- There are no automated tests or lint config yet.
 
 ## Notes
 
 - `PAYMENTS_ENABLED` (default `false`) gates the whole credits system; while off, poem generation is free and checkout returns 503.
-- Stubbed: video rendering (creations are marked ready with a placeholder URL), auth (no OTP/password), placeholder template/music URLs.
-- Payments use Cashfree (originally Razorpay in the scaffold). Env vars: `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET`, `CASHFREE_ENV` (`sandbox`|`production`), `CASHFREE_NOTIFY_URL`. The Cashfree client was written without access to Cashfree's docs and has not been run against the sandbox.
+- Stubbed: video rendering (creations are marked ready with a placeholder URL), placeholder template/music URLs. Auth: `POST /auth/firebase` is the real login, but the other routers still trust a client-sent `user_id` and the legacy `/auth/signup` stub is still there; switching them to `get_current_user` is still to do. `FIREBASE_PROJECT_ID` is required for token verification.
+- Payments use Cashfree (originally Razorpay in the scaffold). Env vars: `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET`, `CASHFREE_ENV` (`sandbox`|`production`), `CASHFREE_NOTIFY_URL`. The Cashfree client was written without access to Cashfree's docs and has not been run against the sandbox (only against a mocked Cashfree).
 - Decided stack: React Native (Expo) for the app, Firebase Auth (phone OTP) for login, Neon (managed Postgres) for the production database.
 - Never commit `backend/.env` or real API keys.
 - Develop on the `claude/epic-gates-5rqbqc` branch.

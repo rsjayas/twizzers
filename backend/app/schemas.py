@@ -8,6 +8,11 @@ class UserCreate(BaseModel):
     name: Optional[str] = None
 
 
+class FirebaseLoginRequest(BaseModel):
+    id_token: str
+    name: Optional[str] = None
+
+
 class UserOut(BaseModel):
     id: str
     phone: Optional[str]
