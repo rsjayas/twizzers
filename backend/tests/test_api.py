@@ -124,3 +124,27 @@ def test_credits_purchase_flow(client, make_user):
         assert good.json()["ok"]
 
     assert client.get("/credits/balance", headers=h).json()["credits_balance"] == pack["credits"]  # credited once
+
+
+def test_security_headers_and_cors(client, make_user):
+    r = client.get("/health")
+    assert r.headers["x-content-type-options"] == "nosniff"
+    assert r.headers["x-frame-options"] == "DENY"
+    assert r.headers["referrer-policy"] == "no-referrer"
+    _, h = make_user()
+    assert client.get("/credits/balance", headers=h).headers["cache-control"] == "no-store"
+
+    allowed = client.options("/credits/packs", headers={"Origin": "https://pay.example.com", "Access-Control-Request-Method": "GET"})
+    assert allowed.headers.get("access-control-allow-origin") == "https://pay.example.com"
+    blocked = client.options("/credits/packs", headers={"Origin": "https://evil.example.com", "Access-Control-Request-Method": "GET"})
+    assert "access-control-allow-origin" not in blocked.headers
+
+
+def test_origin_verify_header_when_configured(client, monkeypatch):
+    monkeypatch.setenv("ORIGIN_VERIFY_SECRET", "cdn-shared-secret-123")
+    assert client.get("/templates/").status_code == 403
+    assert client.get("/templates/", headers={"X-Origin-Verify": "wrong"}).status_code == 403
+    assert client.get("/templates/", headers={"X-Origin-Verify": "cdn-shared-secret-123"}).status_code == 200
+    assert client.get("/health").status_code == 200  # uptime checks stay open
+    monkeypatch.delenv("ORIGIN_VERIFY_SECRET")
+    assert client.get("/templates/").status_code == 200

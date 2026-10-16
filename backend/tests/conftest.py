@@ -26,6 +26,7 @@ else:
     os.environ["CASHFREE_CLIENT_SECRET"] = "test-secret"
     os.environ["RENDER_SERVICE_URL"] = ""
     os.environ["RENDER_SECRET"] = "render-secret"
+    os.environ["CORS_ORIGINS"] = "https://pay.example.com"
     os.environ["ADMIN_JWT_SECRET"] = "test-admin-secret-0123456789"
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 

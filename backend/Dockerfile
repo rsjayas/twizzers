@@ -20,5 +20,9 @@ COPY backend/ .
 COPY --from=admin-build /admin/dist /admin-ui
 ENV ADMIN_UI_DIR=/admin-ui
 
+# Run as an unprivileged user (the app only reads its files).
+RUN useradd --create-home --uid 10001 app
+USER app
+
 EXPOSE 8000
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

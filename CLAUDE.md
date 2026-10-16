@@ -15,6 +15,7 @@ Tweezers (tagline: "Two bodies, one soul"; the GitHub repo is named `twizzers`, 
 - `admin/` - admin dashboard (React + Vite + TypeScript): charts, users, creations, transactions, content, settings, admin accounts, audit log; roles superadmin/support/content. Built into the backend image and served at `/admin`; API at `/admin/api` (`backend/app/admin/`). See `admin/README.md`. First admin: `python -m app.admin.cli create-admin <email> <role>` (needs `ADMIN_JWT_SECRET`). Runtime settings (payments switch, poem price) live in the `settings` table and override the env defaults.
 - `docker-compose.yml` - Postgres + backend (image built from the repo root, includes the admin UI) + render service.
 - `render-service/` - Remotion (Node) service that turns a poem into a 9:16 MP4. `src/remotion/` is the composition (`PoemVideo`). Remotion docs were not reachable from the sandbox; render tested with Chromium at `/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell`.
+- `docs/SECURITY.md` - what is public, EC2 hardening checklist, CloudFront/Cloudflare in front (`ORIGIN_VERIFY_SECRET`, `CORS_ORIGINS`), known gaps.
 - `docs/ARCHITECTURE.md` - which service is used for each task (AI and web services), system diagram, working flows, env vars. Keep it updated when a service or flow changes.
 - `docs/PROJECT_DISCUSSION.md` - product decisions, roadmap, stack, hosting plan and future ideas (e.g. AI image generation). Read it for context and keep it updated when decisions change.
 
