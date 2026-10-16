@@ -229,12 +229,12 @@ Written 16 Oct 2026 from third-party pricing summaries, not the vendors' own pri
 | API + admin host (Render) | Starter $7 (512 MB), Standard $25 (2 GB) | $0-7 | $7 | $25 |
 | Render workspace plan | Hobby $0, Pro about $25 (unverified) | $0 | $0 | about $25 |
 | Render service host (needs about 2 GB for Chromium) | Standard $25, Pro $85 | $0 (run locally) | $25 | $50-85 |
-| Database (Neon) | about $0.106 per compute-hour (1 CU = 1 vCPU, 4 GB) + $0.35 per GB-month; free tier 100 CU-hours | $0 | $0-10 | $20-40 |
+| Database (Neon) | about $0.106 per compute-hour (1 CU = 1 vCPU, 4 GB) + $0.35 per GB-month; free tier 100 CU-hours | $0 | $0-20 | $20-80 |
 | Videos (Cloudflare R2) | $0.015 per GB-month, free egress, 10 GB free | $0 | $0 | about $1 |
 | AI poems (Claude API) | about $0.008 per request | about $1 | about $24 | about $240 |
 | Phone login SMS (Firebase, India) | about $0.06-0.07 per SMS (10 a day free); paid Blaze plan needed | $0 (test numbers) | about $70 | about $435 |
 | Domain | about $12 a year | $1 | $1 | $1 |
-| **Total** | | **about $2-10 (Rs 200-900)** | **about $130 (Rs 11,500)** | **about $800-850 (Rs 70,000-75,000)** |
+| **Total** | | **about $2-10 (Rs 200-900)** | **about $130 (Rs 11,500)** | **about $800-890 (Rs 70,000-78,000)** |
 
 One-time: Google Play developer account (about $25), Apple Developer account ($99 a year, only when you ship on iPhone). Both are unverified.
 
@@ -297,3 +297,19 @@ Code changes needed for Cloud Run:
 4. **Admin login throttling** is kept in memory per instance, so it is weaker when several instances run.
 
 Compared with Render at the same size (about $32 early launch): Cloud Run is cheaper at low volume and has a Mumbai region, but needs the changes above; a single VM is simple and unchanged but you maintain the machine (updates, HTTPS, restarts).
+
+### Neon (Postgres) in detail (16 Oct 2026, third-party prices, unverified)
+
+Rates reported: Launch plan about $0.106 per compute unit-hour (1 CU = 1 vCPU and 4 GB of memory), Scale plan about $0.222 per CU-hour, storage $0.35 per GB-month on both; Free plan includes 100 CU-hours and 0.5 GB per project. One source says paid plans have had no monthly minimum since December 2025; another lists flat $19 / $69 plans that conflict, so check Neon's pricing page.
+
+Our database is tiny: poems, users, creations and logs are text, so 10,000 poems is only a few tens of MB. Storage stays under $1 for a long time. Compute is what you pay for.
+
+| Case | Compute use | Cost per month |
+|---|---|---|
+| Prototype | a few hours a day, scale-to-zero | $0 (Free plan) |
+| Early launch, scale-to-zero, active about 12 h a day at 0.25 CU | about 90 CU-hours | about $0 on the Free plan, about $10 on a paid plan |
+| Early launch, always on at 0.25 CU | 180 CU-hours | about $19 |
+| Growth, always on at 0.5 CU | 365 CU-hours | about $39 |
+| Growth, always on at 1 CU | 730 CU-hours | about $77 |
+
+Scale-to-zero saves money but the first request after idle waits for the database to wake up; turn it off before launch if that delay matters. Keep the API in a region close to Neon (Singapore is available on AWS; a Mumbai region was not confirmed).
