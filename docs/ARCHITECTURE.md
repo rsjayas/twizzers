@@ -249,6 +249,7 @@ One-time: Google Play developer account (about $25), Apple Developer account ($9
 
 ### Not priced yet
 - **Music licensing** (Epidemic Sound, Artlist or similar) for use inside a paid app is likely a commercial licence. Ask the vendors; it could be the largest unknown.
+- **Remotion licence.** Remotion is free for individuals and for-profit organisations of up to 3 people, including commercial use. Beyond that, an automated pipeline like ours needs the paid "Automators" licence, listed at $0.01 per render with a $100 a month minimum (at 15,000 renders a month that is $150). Confirm on remotion.dev/docs/pricing and ask Remotion if unsure whether your team counts.
 - Payment gateway fee (Cashfree, a percentage of each payment).
 - Analytics (PostHog, Mixpanel; free tiers exist), error monitoring, EAS cloud builds for the app, and your own time.
 
@@ -268,3 +269,13 @@ Prices are third-party summaries from 16 Oct 2026 and unverified; the Mumbai/Ind
 | **Cloudflare** | Not suitable for the API itself | - | - | Use it for R2 storage, CDN, DNS/DDoS protection and the checkout page. Its Workers do not run this FastAPI + Postgres + Chromium stack as is; Cloudflare Containers were not checked. |
 
 The render service needs 2 GB or more and is billed separately (see the table above). Neon should be in a region near the API, because every request talks to the database.
+
+### If AWS is the choice (16 Oct 2026, third-party prices, mostly US East examples, Mumbai rates differ)
+
+| AWS option | Fits the API | Fits the render service | Rough monthly cost (early launch) | Catch |
+|---|---|---|---|---|
+| **Lightsail containers** | Yes, simplest. Nano $7 (512 MB, 0.25 vCPU), Micro about $10, Small about $15, Medium $40 (only Nano and the Medium price are confirmed by AWS docs); includes a load balancer, HTTPS and 500 GB transfer | Only Medium or larger, and CPU is limited, so renders are slow | API about $10 + render $15-40 = about $25-50 | Small CPUs; no on-demand rendering |
+| **ECS on Fargate** | Yes, but needs more setup (VPC, load balancer, IAM, logs) | Yes; best used as on-demand tasks per render (needs code to start tasks) | API about $18 (0.5 vCPU, 1 GB at $0.04048 per vCPU-hour and $0.004445 per GB-hour) + load balancer about $16-22 + public IPv4 about $4 = about $40; render always on (2 vCPU, 4 GB) about $72, or on demand about $3 at 1,500 renders | Load balancer and IP charges; NAT gateway if you use private subnets; most work |
+| **Lambda** | Possible with an adapter, but cold starts and database connections need care; about $0-5 | Remotion has a Lambda renderer (`renderMediaOnLambda`) that renders in parallel, but it is a different code path from what we built | API about $0-5; render AWS compute plus the Remotion licence | Needs rewrites; licence minimum of $100 a month if over 3 people |
+
+Simplest AWS setup: API on Lightsail Micro, render service on Lightsail Medium (about $50 a month together, against about $32 on Render). Revisit Fargate or Remotion Lambda only at volume. AWS is not cheaper or simpler than Render or Railway at this size; the reasons to pick it are credits, a Mumbai region or wanting everything in one cloud account.
