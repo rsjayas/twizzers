@@ -253,3 +253,18 @@ One-time: Google Play developer account (about $25), Apple Developer account ($9
 - Analytics (PostHog, Mixpanel; free tiers exist), error monitoring, EAS cloud builds for the app, and your own time.
 
 Sources used: Render, Neon, Cloudflare R2, Firebase and Anthropic pricing summaries found on 16 Oct 2026 (Render's own article on hosting costs, Jet Admin's Neon pricing review, Cloudflare's R2 pricing page preview, Magora's Firebase pricing guide, anotherwrapper.com's Claude pricing pages). Treat them as approximate.
+
+### Hosting options for the API + admin container (one small container, about 0.5 CPU and 512 MB to 1 GB)
+
+Prices are third-party summaries from 16 Oct 2026 and unverified; the Mumbai/India notes matter because most users are in India.
+
+| Option | What it is | Rough monthly cost, always on | India region | Notes |
+|---|---|---|---|---|
+| **Render** | Managed platform, reported to run on AWS (Singapore = AWS ap-southeast-1) | Starter $7 (512 MB), Standard $25 (2 GB) | No India region; Singapore is the closest | Simplest. Free tier sleeps. |
+| **Railway** | Managed platform | Pay for usage: about $20 per vCPU-month and $10 per GB-month, Hobby plan $5 including $5 of usage; a small API is about $5-15 | Not checked | Easy deploys; bill follows actual use. |
+| **Fly.io** | Managed platform on its own machines | About $3-4 for a 512 MB shared CPU (sources disagree) | Mumbai (bom) not confirmed | Cheapest always-on; no free tier for new accounts. |
+| **Google Cloud Run** | Run the container on GCP, billed per use, scales to zero | About $0-10 at low traffic (free tier includes Mumbai asia-south1); more if kept warm | Mumbai (asia-south1) | Cheapest at low traffic and closest to users; more setup. Cold starts, and migrations should run as a separate step. |
+| **AWS Lightsail containers** | Containers on AWS | From about $7 | Mumbai (ap-south-1); included data transfer is halved there | AWS App Runner/ECS cost was not found. |
+| **Cloudflare** | Not suitable for the API itself | - | - | Use it for R2 storage, CDN, DNS/DDoS protection and the checkout page. Its Workers do not run this FastAPI + Postgres + Chromium stack as is; Cloudflare Containers were not checked. |
+
+The render service needs 2 GB or more and is billed separately (see the table above). Neon should be in a region near the API, because every request talks to the database.
