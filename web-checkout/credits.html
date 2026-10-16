@@ -62,9 +62,14 @@
 <script>
 // ---- Configuration ----
 // In production, host this page at e.g. https://pay.yourtweezers.com/credits.html
-// and pass user_id + a return deep link as query params from the app.
+// and open it from the app with the Firebase ID token in the URL fragment (#token=...).
 const API_BASE = new URLSearchParams(location.search).get('api') || 'http://localhost:8000';
-const USER_ID = new URLSearchParams(location.search).get('user_id');
+// The app opens this page with the user's Firebase ID token in the URL
+// fragment (#token=...), which browsers never send to servers or log.
+// Tokens expire after about an hour, so open the page right before checkout.
+const TOKEN = new URLSearchParams(location.hash.slice(1)).get('token');
+const AUTH = { 'Authorization': 'Bearer ' + TOKEN };
+history.replaceState(null, '', location.pathname + location.search);
 // Custom URL scheme the app registers, e.g. tweezers://credits-success
 const APP_RETURN_SCHEME = new URLSearchParams(location.search).get('return_scheme') || 'tweezers://credits-success';
 
@@ -72,8 +77,8 @@ let selectedPack = null;
 let packs = [];
 
 async function init() {
-  if (!USER_ID) {
-    document.getElementById('status').textContent = 'Missing user_id in link — open this page from the app.';
+  if (!TOKEN) {
+    document.getElementById('status').textContent = 'Missing login token — open this page from the app.';
     return;
   }
   await refreshBalance();
@@ -82,7 +87,8 @@ async function init() {
 
 async function refreshBalance() {
   try {
-    const res = await fetch(`${API_BASE}/credits/balance/${USER_ID}`);
+    const res = await fetch(`${API_BASE}/credits/balance`, { headers: AUTH });
+    if (!res.ok) throw new Error('auth');
     const data = await res.json();
     document.getElementById('balanceBadge').textContent = `Current balance: ${data.credits_balance} credits`;
   } catch (e) {
@@ -123,8 +129,8 @@ async function startPayment() {
   try {
     const res = await fetch(`${API_BASE}/credits/checkout/create-order`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ user_id: USER_ID, credit_pack_id: selectedPack.id }),
+      headers: { 'Content-Type': 'application/json', ...AUTH },
+      body: JSON.stringify({ credit_pack_id: selectedPack.id }),
     });
     if (res.status === 503) {
       document.getElementById('disabledNotice').style.display = 'block';
@@ -165,7 +171,7 @@ async function verifyAndRedirect(transactionId, cashfreeOrderId) {
   try {
     const res = await fetch(`${API_BASE}/credits/checkout/verify`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...AUTH },
       body: JSON.stringify({
         transaction_id: transactionId,
         cashfree_order_id: cashfreeOrderId,
@@ -198,7 +204,7 @@ function showSuccessAndRedirect(data) {
 }
 
 function returnToApp() {
-  const url = `${APP_RETURN_SCHEME}?status=success&user_id=${encodeURIComponent(USER_ID)}`;
+  const url = `${APP_RETURN_SCHEME}?status=success`;
   window.location.href = url;
   // Fallback message in case the app isn't installed / deep link doesn't fire.
   setTimeout(() => {

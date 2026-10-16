@@ -24,7 +24,6 @@ class UserOut(BaseModel):
 
 
 class PoemGenerateRequest(BaseModel):
-    user_id: str
     occasion: str          # e.g. "anniversary", "apology", "long_distance"
     tone: str               # e.g. "playful", "deeply_romantic", "nostalgic"
     relationship_length: Optional[str] = None
@@ -54,7 +53,6 @@ class PoemOut(BaseModel):
 
 
 class PoemWriteRequest(BaseModel):
-    user_id: str
     content: str
 
 
@@ -85,7 +83,6 @@ class MusicTrackOut(BaseModel):
 
 
 class CreationCreateRequest(BaseModel):
-    user_id: str
     poem_id: str
     template_id: str
     music_track_id: str
@@ -123,7 +120,6 @@ class CreditPackOut(BaseModel):
 
 
 class CreateCheckoutOrderRequest(BaseModel):
-    user_id: str
     credit_pack_id: str
 
 

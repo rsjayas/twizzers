@@ -84,6 +84,12 @@
 <script>
 let state = { userId: null, poemId: null, selectedVariantId: null, templateId: null, musicId: null };
 
+// Local dev only: the backend must run with AUTH_DEV_BYPASS=true, which accepts
+// "Bearer dev:<user_id>" as that user. The real app sends a Firebase ID token.
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'Authorization': 'Bearer dev:' + state.userId };
+}
+
 function apiBase() { return document.getElementById('apiBase').value.replace(/\/$/, ''); }
 function log(msg) {
   const el = document.getElementById('log');
@@ -97,6 +103,7 @@ async function signup() {
   const res = await fetch(apiBase() + '/auth/signup', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
   });
+  if (!res.ok) { alert('Signup failed. Start the backend with AUTH_DEV_BYPASS=true for this demo.'); return; }
   const data = await res.json();
   state.userId = data.id;
   document.getElementById('userStatus').textContent = 'Signed up as ' + data.id;
@@ -106,7 +113,6 @@ async function signup() {
 async function generatePoem() {
   if (!state.userId) { alert('Sign up first'); return; }
   const payload = {
-    user_id: state.userId,
     occasion: document.getElementById('occasion').value,
     tone: document.getElementById('tone').value,
     recipient_nickname: document.getElementById('nickname').value,
@@ -114,7 +120,7 @@ async function generatePoem() {
     detail_2: document.getElementById('detail2').value,
   };
   const res = await fetch(apiBase() + '/poems/generate', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    method: 'POST', headers: authHeaders(), body: JSON.stringify(payload)
   });
   const data = await res.json();
   state.poemId = data.id;
@@ -134,7 +140,7 @@ async function selectVariant(variantId, el) {
   document.querySelectorAll('.variant').forEach(d => d.classList.remove('selected'));
   el.classList.add('selected');
   const res = await fetch(apiBase() + '/poems/' + state.poemId + '/select-variant', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: authHeaders(),
     body: JSON.stringify({ variant_id: variantId })
   });
   const data = await res.json();
@@ -169,8 +175,8 @@ async function loadTemplatesAndMusic() {
 async function createCreation() {
   if (!state.poemId || !state.templateId || !state.musicId) { alert('Complete steps 2-3 first'); return; }
   const res = await fetch(apiBase() + '/creations/', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ user_id: state.userId, poem_id: state.poemId, template_id: state.templateId, music_track_id: state.musicId })
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({ poem_id: state.poemId, template_id: state.templateId, music_track_id: state.musicId })
   });
   const data = await res.json();
   document.getElementById('creationResult').innerHTML =

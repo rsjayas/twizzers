@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas, ai
 from ..database import get_db
+from ..firebase_auth import get_current_user
 
 router = APIRouter(prefix="/poems", tags=["poems"])
 
@@ -20,10 +21,11 @@ PAYMENTS_ENABLED = os.getenv("PAYMENTS_ENABLED", "false").lower() == "true"
 
 
 @router.post("/generate", response_model=schemas.PoemOut)
-async def generate_poem(payload: schemas.PoemGenerateRequest, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.id == payload.user_id).first()
-    if not user:
-        raise HTTPException(404, "User not found")
+async def generate_poem(
+    payload: schemas.PoemGenerateRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
     if PAYMENTS_ENABLED and (user.credits_balance or 0) < COST_PER_STORY_CREDITS:
         raise HTTPException(
             402,
@@ -41,9 +43,9 @@ async def generate_poem(payload: schemas.PoemGenerateRequest, db: Session = Depe
     )
 
     poem = models.Poem(
-        user_id=payload.user_id,
+        user_id=user.id,
         source="ai_generated",
-        original_prompt=payload.model_dump(exclude={"user_id"}),
+        original_prompt=payload.model_dump(),
         status="draft",
     )
     db.add(poem)
@@ -63,9 +65,13 @@ async def generate_poem(payload: schemas.PoemGenerateRequest, db: Session = Depe
 
 
 @router.post("/write", response_model=schemas.PoemOut)
-def write_poem(payload: schemas.PoemWriteRequest, db: Session = Depends(get_db)):
+def write_poem(
+    payload: schemas.PoemWriteRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
     poem = models.Poem(
-        user_id=payload.user_id,
+        user_id=user.id,
         source="written",
         content=payload.content,
         status="finalized",
@@ -77,8 +83,13 @@ def write_poem(payload: schemas.PoemWriteRequest, db: Session = Depends(get_db))
 
 
 @router.post("/{poem_id}/select-variant", response_model=schemas.PoemOut)
-def select_variant(poem_id: str, payload: schemas.PoemSelectVariantRequest, db: Session = Depends(get_db)):
-    poem = db.query(models.Poem).filter(models.Poem.id == poem_id).first()
+def select_variant(
+    poem_id: str,
+    payload: schemas.PoemSelectVariantRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    poem = db.query(models.Poem).filter(models.Poem.id == poem_id, models.Poem.user_id == user.id).first()
     if not poem:
         raise HTTPException(404, "Poem not found")
 
@@ -100,8 +111,8 @@ def select_variant(poem_id: str, payload: schemas.PoemSelectVariantRequest, db: 
 
 
 @router.get("/{poem_id}", response_model=schemas.PoemOut)
-def get_poem(poem_id: str, db: Session = Depends(get_db)):
-    poem = db.query(models.Poem).filter(models.Poem.id == poem_id).first()
+def get_poem(poem_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    poem = db.query(models.Poem).filter(models.Poem.id == poem_id, models.Poem.user_id == user.id).first()
     if not poem:
         raise HTTPException(404, "Poem not found")
     return poem

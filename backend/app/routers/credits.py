@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas, cashfree_client
 from ..database import get_db
+from ..firebase_auth import get_current_user
 
 router = APIRouter(prefix="/credits", tags=["credits"])
 
@@ -19,26 +20,23 @@ def list_packs(db: Session = Depends(get_db)):
     return db.query(models.CreditPack).filter(models.CreditPack.is_active == True).all()  # noqa: E712
 
 
-@router.get("/balance/{user_id}", response_model=schemas.CreditBalanceOut)
-def get_balance(user_id: str, db: Session = Depends(get_db)):
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(404, "User not found")
+@router.get("/balance", response_model=schemas.CreditBalanceOut)
+def get_balance(user: models.User = Depends(get_current_user)):
     return schemas.CreditBalanceOut(user_id=user.id, credits_balance=user.credits_balance)
 
 
 @router.post("/checkout/create-order", response_model=schemas.CreateCheckoutOrderResponse)
-async def create_checkout_order(payload: schemas.CreateCheckoutOrderRequest, db: Session = Depends(get_db)):
+async def create_checkout_order(
+    payload: schemas.CreateCheckoutOrderRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
     """
     Called by the standalone web checkout page (NOT from inside the app)
     to start a Cashfree order for a credit pack purchase.
     """
     if not PAYMENTS_ENABLED:
         raise HTTPException(503, "Payments are not enabled yet - everything is free for now.")
-
-    user = db.query(models.User).filter(models.User.id == payload.user_id).first()
-    if not user:
-        raise HTTPException(404, "User not found")
 
     pack = db.query(models.CreditPack).filter(
         models.CreditPack.id == payload.credit_pack_id,
@@ -103,7 +101,11 @@ def _credit_wallet_if_needed(db: Session, txn: models.CreditTransaction) -> mode
 
 
 @router.post("/checkout/verify", response_model=schemas.VerifyPaymentResponse)
-async def verify_payment(payload: schemas.VerifyPaymentRequest, db: Session = Depends(get_db)):
+async def verify_payment(
+    payload: schemas.VerifyPaymentRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
     """
     Called by the web checkout page after Cashfree's checkout reports
     completion. Cashfree has no client-side signature, so we ask Cashfree
@@ -111,7 +113,9 @@ async def verify_payment(payload: schemas.VerifyPaymentRequest, db: Session = De
     credits the wallet. Returns the new balance so the page can show it
     before redirecting back into the app.
     """
-    txn = db.query(models.CreditTransaction).filter(models.CreditTransaction.id == payload.transaction_id).first()
+    txn = db.query(models.CreditTransaction).filter(
+        models.CreditTransaction.id == payload.transaction_id, models.CreditTransaction.user_id == user.id
+    ).first()
     if not txn:
         raise HTTPException(404, "Transaction not found")
     if txn.cashfree_order_id != payload.cashfree_order_id:

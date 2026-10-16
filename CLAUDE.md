@@ -17,7 +17,7 @@ twizzers (originally scaffolded under the name "Tweezers"; see `SCAFFOLD.md` for
 
 ## Commands
 
-- Run everything: `cp backend/.env.example backend/.env && docker compose up --build`, then `docker compose exec backend python seed_data.py`. API docs at `http://localhost:8000/docs`.
+- Run everything: `cp backend/.env.example backend/.env && docker compose up --build` (set `AUTH_DEV_BYPASS=true` in your shell or `.env` to use frontend-demo), then `docker compose exec backend python seed_data.py`. API docs at `http://localhost:8000/docs`.
 - Run without Docker: in `backend/`, `pip install -r requirements.txt`, set `DATABASE_URL`, then `uvicorn app.main:app --reload` and `python seed_data.py`.
 - Migrations: the schema is managed by Alembic (Docker runs `alembic upgrade head` on start). After changing `models.py`, in `backend/` run `alembic revision --autogenerate -m "msg"`, review the file, then `alembic upgrade head`.
 - There are no automated tests or lint config yet.
@@ -25,7 +25,7 @@ twizzers (originally scaffolded under the name "Tweezers"; see `SCAFFOLD.md` for
 ## Notes
 
 - `PAYMENTS_ENABLED` (default `false`) gates the whole credits system; while off, poem generation is free and checkout returns 503.
-- Stubbed: video rendering (creations are marked ready with a placeholder URL), placeholder template/music URLs. Auth: `POST /auth/firebase` is the real login, but the other routers still trust a client-sent `user_id` and the legacy `/auth/signup` stub is still there; switching them to `get_current_user` is still to do. `FIREBASE_PROJECT_ID` is required for token verification.
+- Stubbed: video rendering (creations are marked ready with a placeholder URL), placeholder template/music URLs. Auth: `POST /auth/firebase` is the real login. All user-owned routes (poems, creations, credits balance/checkout) require `Authorization: Bearer <Firebase ID token>` via `get_current_user` and check ownership; public routes are templates, music, credit packs, `/creations/share/{slug}` and the signed payment webhook. `FIREBASE_PROJECT_ID` is required for token verification. For local demos only, `AUTH_DEV_BYPASS=true` accepts `Bearer dev:<user_id>` and enables `POST /auth/signup` (frontend-demo needs it); never enable it in production.
 - Payments use Cashfree (originally Razorpay in the scaffold). Env vars: `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET`, `CASHFREE_ENV` (`sandbox`|`production`), `CASHFREE_NOTIFY_URL`. The Cashfree client was written without access to Cashfree's docs and has not been run against the sandbox (only against a mocked Cashfree).
 - Decided stack: React Native (Expo) for the app, Firebase Auth (phone OTP) for login, Neon (managed Postgres) for the production database.
 - Never commit `backend/.env` or real API keys.

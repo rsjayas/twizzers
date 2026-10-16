@@ -82,7 +82,7 @@ the payment gateway's own fee.
 ### How the flow works end-to-end
 
 1. Inside the app, when a user is low on credits, show a "Buy Credits"
-   button that opens `web-checkout/credits.html?user_id={id}&api={backend_url}`
+   button that opens `web-checkout/credits.html?api={backend_url}#token={firebase_id_token}`
    in the device's browser (`Intent`/`CustomTabs` on Android — NOT a
    WebView embedded in the app, since some interpretations of Play policy
    still treat an in-app WebView checkout as effectively "in-app").

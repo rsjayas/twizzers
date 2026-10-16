@@ -8,6 +8,7 @@ Firebase user (uid) to a row in `users`.
 Requires FIREBASE_PROJECT_ID (the Firebase project's ID, which is the
 expected audience of the token).
 """
+import logging
 import os
 
 from fastapi import Depends, Header, HTTPException
@@ -19,6 +20,13 @@ from . import models
 from .database import get_db
 
 FIREBASE_PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "")
+
+# LOCAL DEVELOPMENT ONLY. When "true", `Authorization: Bearer dev:<user_id>`
+# is accepted as that user (no Firebase needed) and POST /auth/signup is
+# enabled. This lets frontend-demo work locally. NEVER enable in production.
+AUTH_DEV_BYPASS = os.getenv("AUTH_DEV_BYPASS", "false").lower() == "true"
+if AUTH_DEV_BYPASS:
+    logging.getLogger("uvicorn.error").warning("AUTH_DEV_BYPASS is ON - anyone can act as any user. Local dev only!")
 
 
 def verify_id_token(token: str) -> dict:
@@ -71,4 +79,9 @@ def get_current_user(
     scheme, _, token = authorization.partition(" ")
     if scheme.lower() != "bearer" or not token:
         raise HTTPException(401, "Missing bearer token")
+    if AUTH_DEV_BYPASS and token.startswith("dev:"):
+        user = db.query(models.User).filter(models.User.id == token[4:]).first()
+        if not user:
+            raise HTTPException(401, "Unknown dev user")
+        return user
     return get_or_create_user(db, verify_id_token(token))

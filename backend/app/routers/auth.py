@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from .. import firebase_auth, models, schemas
@@ -25,9 +25,11 @@ def me(user: models.User = Depends(firebase_auth.get_current_user)):
 @router.post("/signup", response_model=schemas.UserOut)
 def signup(payload: schemas.UserCreate, db: Session = Depends(get_db)):
     """
-    LEGACY stub (no verification) used by frontend-demo. Real login is
-    POST /auth/firebase; remove this once the app and demo use it.
+    DEV ONLY (needs AUTH_DEV_BYPASS=true, otherwise 404): unverified signup
+    used by frontend-demo. Real login is POST /auth/firebase.
     """
+    if not firebase_auth.AUTH_DEV_BYPASS:
+        raise HTTPException(404, "Not found")
     existing = None
     if payload.phone:
         existing = db.query(models.User).filter(models.User.phone == payload.phone).first()

@@ -3,18 +3,23 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
+from ..firebase_auth import get_current_user
 
 router = APIRouter(prefix="/creations", tags=["creations"])
 
 
 @router.post("/", response_model=schemas.CreationOut)
-def create_creation(payload: schemas.CreationCreateRequest, db: Session = Depends(get_db)):
-    poem = db.query(models.Poem).filter(models.Poem.id == payload.poem_id).first()
+def create_creation(
+    payload: schemas.CreationCreateRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    poem = db.query(models.Poem).filter(models.Poem.id == payload.poem_id, models.Poem.user_id == user.id).first()
     if not poem or poem.status != "finalized":
         raise HTTPException(400, "Poem must be finalized before creating a video")
 
     creation = models.Creation(
-        user_id=payload.user_id,
+        user_id=user.id,
         poem_id=payload.poem_id,
         template_id=payload.template_id,
         music_track_id=payload.music_track_id,
@@ -36,8 +41,10 @@ def create_creation(payload: schemas.CreationCreateRequest, db: Session = Depend
 
 
 @router.get("/{creation_id}", response_model=schemas.CreationOut)
-def get_creation(creation_id: str, db: Session = Depends(get_db)):
-    creation = db.query(models.Creation).filter(models.Creation.id == creation_id).first()
+def get_creation(creation_id: str, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
+    creation = db.query(models.Creation).filter(
+        models.Creation.id == creation_id, models.Creation.user_id == user.id
+    ).first()
     if not creation:
         raise HTTPException(404, "Creation not found")
     return creation
@@ -56,7 +63,16 @@ def get_creation_by_share_link(slug: str, db: Session = Depends(get_db)):
 
 
 @router.post("/share-event")
-def log_share_event(payload: schemas.ShareEventRequest, db: Session = Depends(get_db)):
+def log_share_event(
+    payload: schemas.ShareEventRequest,
+    db: Session = Depends(get_db),
+    user: models.User = Depends(get_current_user),
+):
+    owned = db.query(models.Creation).filter(
+        models.Creation.id == payload.creation_id, models.Creation.user_id == user.id
+    ).first()
+    if not owned:
+        raise HTTPException(404, "Creation not found")
     share = models.Share(creation_id=payload.creation_id, channel=payload.channel)
     db.add(share)
     db.commit()
