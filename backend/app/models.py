@@ -17,7 +17,6 @@ def gen_uuid():
 class User(Base):
     __tablename__ = "users"
     id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
-    firebase_uid = Column(String, unique=True, nullable=True, index=True)
     phone = Column(String, unique=True, nullable=True)
     email = Column(String, unique=True, nullable=True)
     name = Column(String, nullable=True)
@@ -28,6 +27,20 @@ class User(Base):
     poems = relationship("Poem", back_populates="user")
     creations = relationship("Creation", back_populates="user")
     credit_transactions = relationship("CreditTransaction", back_populates="user")
+    identities = relationship("UserIdentity", back_populates="user")
+
+
+class UserIdentity(Base):
+    """One way a person signs in (a Firebase account). A user can have several:
+    email + password, Google, phone. They all map to the same user row."""
+    __tablename__ = "user_identities"
+    id = Column(UUID(as_uuid=False), primary_key=True, default=gen_uuid)
+    user_id = Column(UUID(as_uuid=False), ForeignKey("users.id"), nullable=False, index=True)
+    firebase_uid = Column(String, unique=True, nullable=False, index=True)
+    provider = Column(String, nullable=False)  # password | google.com | phone | other
+    created_at = Column(DateTime, default=dt.datetime.utcnow)
+
+    user = relationship("User", back_populates="identities")
 
 
 class Partner(Base):

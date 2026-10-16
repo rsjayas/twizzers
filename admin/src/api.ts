@@ -38,7 +38,7 @@ export async function api<T>(path: string, init: { method?: string; body?: unkno
 // ---- types ----
 export type Admin = { id: string; email: string; role: string; is_active: boolean; created_at: string | null; last_login_at: string | null; permissions: string[] };
 export type Paged<T> = { total: number; items: T[] };
-export type User = { id: string; name: string | null; phone: string | null; email: string | null; firebase_uid: string | null; credits_balance: number; created_at: string | null };
+export type User = { id: string; name: string | null; phone: string | null; email: string | null; providers: string[]; credits_balance: number; created_at: string | null };
 export type Creation = { id: string; user_id: string; status: string; rendered_video_url: string | null; thumbnail_url: string | null; share_link_slug: string; recipient_view_count: number; created_at: string | null; poem: string | null };
 export type Txn = { id: string; user_id: string; credits: number; amount_inr: number; status: string; note: string | null; cashfree_order_id: string | null; created_at: string | null; paid_at: string | null };
 export type UserDetail = User & { poem_count: number; creations: Creation[]; transactions: Txn[] };

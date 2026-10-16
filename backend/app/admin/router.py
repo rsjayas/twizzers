@@ -123,7 +123,7 @@ def stats(days: int = 30, db: Session = Depends(get_db), admin: models.AdminUser
 
 def _user_out(u: models.User) -> dict:
     return {"id": u.id, "name": u.name, "phone": u.phone, "email": u.email,
-            "firebase_uid": u.firebase_uid, "credits_balance": u.credits_balance or 0,
+            "providers": sorted({i.provider for i in u.identities}), "credits_balance": u.credits_balance or 0,
             "created_at": _iso(u.created_at)}
 
 

@@ -14,6 +14,7 @@ import os
 from fastapi import Depends, Header, HTTPException
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token as google_id_token
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from . import models
@@ -44,28 +45,55 @@ def verify_id_token(token: str) -> dict:
     return claims
 
 
+def sign_in_provider(claims: dict) -> str:
+    return (claims.get("firebase") or {}).get("sign_in_provider") or "other"
+
+
 def get_or_create_user(db: Session, claims: dict, name: str | None = None) -> models.User:
+    """
+    Maps a verified Firebase token to our user.
+
+    - A known Firebase account (uid) always maps to its user.
+    - A new Firebase account is linked to an existing user only when the match is proven:
+      the same phone number (phone sign-in proves the phone) or the same email address
+      when Firebase says that email is verified. An unverified email is never used to link,
+      so nobody can take over an account by registering someone else's address.
+    - Email + password accounts must have a verified email before they can use the app.
+    """
     uid = claims.get("user_id") or claims.get("sub")
     if not uid:
         raise HTTPException(401, "Token has no user id")
+    provider = sign_in_provider(claims)
     phone = claims.get("phone_number")
-    email = claims.get("email")
+    email = (claims.get("email") or "").strip().lower() or None
+    email_verified = bool(claims.get("email_verified"))
 
-    user = db.query(models.User).filter(models.User.firebase_uid == uid).first()
-    if user:
-        return user
+    if provider == "password" and not email_verified:
+        raise HTTPException(403, "email_not_verified")
 
-    # Link users created earlier through the old signup stub, by phone/email.
+    identity = db.query(models.UserIdentity).filter(models.UserIdentity.firebase_uid == uid).first()
+    if identity:
+        return identity.user
+
+    user = None
     if phone:
         user = db.query(models.User).filter(models.User.phone == phone).first()
-    if not user and email:
-        user = db.query(models.User).filter(models.User.email == email).first()
-    if user:
-        user.firebase_uid = uid
-        user.auth_provider = "firebase"
-    else:
-        user = models.User(firebase_uid=uid, phone=phone, email=email, name=name, auth_provider="firebase")
+    if not user and email and email_verified:
+        user = db.query(models.User).filter(func.lower(models.User.email) == email).first()
+
+    if not user:
+        user = models.User(phone=phone, email=email if email_verified else None, name=name, auth_provider=provider)
         db.add(user)
+        db.flush()
+    else:
+        # Fill in details we did not have yet.
+        if email and email_verified and not user.email:
+            user.email = email
+        if phone and not user.phone:
+            user.phone = phone
+        if name and not user.name:
+            user.name = name
+    db.add(models.UserIdentity(user_id=user.id, firebase_uid=uid, provider=provider))
     db.commit()
     db.refresh(user)
     return user

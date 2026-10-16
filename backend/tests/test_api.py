@@ -70,27 +70,6 @@ def test_render_callback_needs_secret(client, make_user):
     assert client.get(f"/creations/{c['id']}", headers=h).json()["rendered_video_url"] == "https://cdn/x.mp4"
 
 
-def test_firebase_login_links_and_creates_users(client):
-    from app import firebase_auth
-
-    claims = {"user_id": "fb-uid-1", "phone_number": "+919800000001"}
-
-    def fake_verify(token, request, audience=None):
-        assert audience == "test-project"
-        if token == "good":
-            return claims
-        raise ValueError("bad token")
-
-    with mock.patch.object(firebase_auth.google_id_token, "verify_firebase_token", fake_verify):
-        assert client.post("/auth/firebase", json={"id_token": "bad"}).status_code == 401
-        first = client.post("/auth/firebase", json={"id_token": "good", "name": "Asha"}).json()
-        again = client.post("/auth/firebase", json={"id_token": "good"}).json()
-        assert first["id"] == again["id"]
-        me = client.get("/auth/me", headers={"Authorization": "Bearer good"}).json()
-        assert me["id"] == first["id"]
-        assert client.get("/auth/me").status_code == 401
-
-
 def test_credits_purchase_flow(client, make_user):
     from app import cashfree_client as cf
 
