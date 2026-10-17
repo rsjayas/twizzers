@@ -17,6 +17,7 @@ from sqlalchemy import func, or_, text
 from sqlalchemy.orm import Session
 
 from .. import models, settings_store
+from ..accounts import erase_user_data, finish_erase
 from ..database import get_db
 from ..routers import creations as creations_router
 from . import security
@@ -286,9 +287,8 @@ class EraseUser(BaseModel):
 @router.post("/users/{user_id}/erase")
 def erase_user(user_id: str, payload: EraseUser, db: Session = Depends(get_db),
                admin: models.AdminUser = Depends(require("delete_users"))):
-    """Privacy erasure: removes sign-in methods, poems, videos and shares and blanks the profile.
-    Payment records stay (they are financial records) but no longer identify anyone. Video files in
-    storage (R2) are not deleted by this yet."""
+    """Privacy erasure: removes sign-in methods, poems, videos and shares, blanks the profile and
+    asks the render service to delete the video files. Payment records stay (financial records)."""
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(404, "User not found")
@@ -296,24 +296,11 @@ def erase_user(user_id: str, payload: EraseUser, db: Session = Depends(get_db),
         raise HTTPException(400, "Confirmation does not match the user id")
     if user.deleted_at is not None:
         raise HTTPException(400, "Already erased")
-    creation_ids = [c.id for c in db.query(models.Creation.id).filter(models.Creation.user_id == user.id)]
-    poem_ids = [p.id for p in db.query(models.Poem.id).filter(models.Poem.user_id == user.id)]
-    removed = {"creations": len(creation_ids), "poems": len(poem_ids)}
-    if creation_ids:
-        db.query(models.Report).filter(models.Report.creation_id.in_(creation_ids)).delete(synchronize_session=False)
-        db.query(models.Share).filter(models.Share.creation_id.in_(creation_ids)).delete(synchronize_session=False)
-        db.query(models.Creation).filter(models.Creation.id.in_(creation_ids)).delete(synchronize_session=False)
-    if poem_ids:
-        db.query(models.PoemVariant).filter(models.PoemVariant.poem_id.in_(poem_ids)).delete(synchronize_session=False)
-        db.query(models.Poem).filter(models.Poem.id.in_(poem_ids)).delete(synchronize_session=False)
-    db.query(models.Partner).filter(models.Partner.user_id == user.id).delete(synchronize_session=False)
-    db.query(models.UserIdentity).filter(models.UserIdentity.user_id == user.id).delete(synchronize_session=False)
-    user.name, user.email, user.phone = "Deleted user", None, None
-    user.is_blocked, user.blocked_reason = True, "Account erased"
-    user.deleted_at = dt.datetime.utcnow()
+    erased = erase_user_data(db, user)
+    removed = {"creations": erased["creations"], "poems": erased["poems"]}
     audit(db, admin, "user.erase", "user", user.id, {"reason": payload.reason, **removed})
     db.commit()
-    return {"ok": True, **removed}
+    return {"ok": True, **finish_erase(erased)}
 
 
 # ----------------------------------------------------------- creations

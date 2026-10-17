@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from .. import firebase_auth, models, schemas
-from ..accounts import create_user, ensure_active
+from ..accounts import create_user, ensure_active, erase_user_data, finish_erase
 from ..database import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -44,3 +45,18 @@ def signup(payload: schemas.UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     return user
+
+
+class EraseMe(BaseModel):
+    confirm: str  # must be the word DELETE
+
+
+@router.post("/me/erase")
+def erase_me(payload: EraseMe, db: Session = Depends(get_db), user: models.User = Depends(firebase_auth.get_current_user)):
+    """A user deletes their own account and data (the app then deletes the Firebase account).
+    Removes poems, videos, shares and sign-in links; payment records stay but no longer identify anyone."""
+    if payload.confirm != "DELETE":
+        raise HTTPException(400, "Type DELETE to confirm")
+    erased = erase_user_data(db, user)
+    db.commit()
+    return {"ok": True, **finish_erase(erased)}

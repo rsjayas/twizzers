@@ -41,6 +41,7 @@ async def _dispatch_render(creation: models.Creation, poem: models.Poem, templat
         "job_id": creation.id,
         "poem": poem.content,
         "mood_tags": (template.mood_tags if template else None) or [],
+        "template_category": template.category if template else None,
         "music_url": _absolute(music.audio_file_url) if music else None,
         "callback_url": f"{BACKEND_PUBLIC_URL}/creations/internal/{creation.id}/render-result",
     }
@@ -107,6 +108,22 @@ def render_result(
         creation.status = "failed"
     db.commit()
     return {"ok": True}
+
+
+@router.get("/mine")
+def my_creations(limit: int = 30, offset: int = 0, db: Session = Depends(get_db),
+                 user: models.User = Depends(get_current_user)):
+    """The signed-in user's videos, newest first (removed ones are left out)."""
+    limit, offset = max(1, min(limit, 100)), max(0, offset)
+    rows = (db.query(models.Creation)
+            .filter(models.Creation.user_id == user.id, models.Creation.status != "removed")
+            .order_by(models.Creation.created_at.desc()).limit(limit).offset(offset).all())
+    return [{
+        "id": c.id, "status": c.status, "rendered_video_url": c.rendered_video_url,
+        "thumbnail_url": c.thumbnail_url, "share_link_slug": c.share_link_slug,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+        "poem": c.poem.content if c.poem else None,
+    } for c in rows]
 
 
 @router.get("/{creation_id}", response_model=schemas.CreationOut)

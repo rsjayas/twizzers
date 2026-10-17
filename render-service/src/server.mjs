@@ -2,6 +2,7 @@
 //
 //   POST /render   (header x-render-secret)  enqueue a job, returns 202
 //   GET  /files/:name                         serve rendered mp4/jpg
+//   DELETE /files/:id (header x-render-secret) delete a render's files (local and R2)
 //   GET  /health
 //
 // Jobs run one at a time (rendering is CPU heavy). When a job finishes (or
@@ -18,7 +19,7 @@ import { fileURLToPath } from "node:url";
 import crypto from "node:crypto";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, renderStill, selectComposition } from "@remotion/renderer";
-import { r2Enabled, uploadFile } from "./storage.mjs";
+import { r2Enabled, uploadFile, deleteObjects } from "./storage.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 4000);
@@ -27,6 +28,9 @@ const OUTPUT_DIR = path.resolve(process.env.OUTPUT_DIR || path.join(here, "..", 
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || `http://localhost:${PORT}`).replace(/\/$/, "");
 const BROWSER_EXECUTABLE = process.env.BROWSER_EXECUTABLE || undefined;
 const MAX_BODY = 200_000;
+// Output size as a fraction of 1080x1920. 0.6667 gives 720x1280 (fine for Stories and WhatsApp status,
+// about 2x faster); 1 gives full HD.
+const RENDER_SCALE = Number(process.env.RENDER_SCALE || 2 / 3);
 
 if (!SECRET) {
   console.error("RENDER_SECRET is required");
@@ -57,6 +61,7 @@ function validateJob(body) {
     return "callback_url must be an http(s) URL";
   }
   if (body.music_url != null && !/^https?:\/\//.test(body.music_url)) return "music_url must be an http(s) URL";
+  if (body.template_category != null && !/^[a-z0-9_-]{1,40}$/.test(body.template_category)) return "template_category invalid";
   return null;
 }
 
@@ -67,6 +72,7 @@ async function renderJob(job) {
     recipient: job.recipient || "",
     moodTags: Array.isArray(job.mood_tags) ? job.mood_tags : [],
     musicUrl: job.music_url || null,
+    templateCategory: job.template_category || null,
   };
   const common = { serveUrl, inputProps, browserExecutable: BROWSER_EXECUTABLE, chromiumOptions: { gl: "swangle" } };
   const composition = await selectComposition({ ...common, id: "PoemVideo" });
@@ -77,6 +83,7 @@ async function renderJob(job) {
     ...common,
     composition,
     codec: "h264",
+    scale: RENDER_SCALE,
     outputLocation: path.join(OUTPUT_DIR, videoFile),
   });
   // Thumbnail: a frame once a couple of lines are visible.
@@ -85,6 +92,7 @@ async function renderJob(job) {
     composition,
     frame: Math.min(composition.durationInFrames - 1, Math.round(composition.fps * 5)),
     imageFormat: "jpeg",
+    scale: RENDER_SCALE,
     output: path.join(OUTPUT_DIR, thumbFile),
   });
   if (r2Enabled) {
@@ -182,6 +190,19 @@ const server = http.createServer(async (req, res) => {
       if (!fs.existsSync(file)) return send(res, 404, { error: "not found" });
       res.writeHead(200, { "content-type": name.endsWith(".mp4") ? "video/mp4" : "image/jpeg" });
       return fs.createReadStream(file).pipe(res);
+    }
+    if (req.method === "DELETE" && url.pathname.startsWith("/files/")) {
+      if (!safeEqual(req.headers["x-render-secret"] || "", SECRET)) return send(res, 401, { error: "unauthorized" });
+      const id = url.pathname.slice("/files/".length);
+      if (!JOB_ID.test(id)) return send(res, 400, { error: "invalid id" });
+      for (const ext of ["mp4", "jpg"]) fs.rmSync(path.join(OUTPUT_DIR, `${id}.${ext}`), { force: true });
+      try {
+        await deleteObjects([`renders/${id}.mp4`, `renders/${id}.jpg`]);
+      } catch (e) {
+        console.error(`delete of ${id} from storage failed:`, e.message);
+        return send(res, 502, { error: "storage delete failed" });
+      }
+      return send(res, 200, { deleted: id });
     }
     if (req.method === "POST" && url.pathname === "/render") {
       if (!safeEqual(req.headers["x-render-secret"] || "", SECRET)) return send(res, 401, { error: "unauthorized" });

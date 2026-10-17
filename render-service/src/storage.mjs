@@ -9,7 +9,7 @@
 //   R2_BUCKET
 //   R2_PUBLIC_BASE_URL    public URL of the bucket / CDN domain, e.g. https://media.example.com
 import fs from "node:fs";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 const { R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET, R2_PUBLIC_BASE_URL } = process.env;
 
@@ -36,4 +36,12 @@ export async function uploadFile(localPath, key, contentType) {
     }),
   );
   return `${R2_PUBLIC_BASE_URL.replace(/\/$/, "")}/${key}`;
+}
+
+/** Deletes the objects stored for a render (no error if they do not exist). */
+export async function deleteObjects(keys) {
+  if (!r2Enabled) return;
+  for (const key of keys) {
+    await client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key }));
+  }
 }

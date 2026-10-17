@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.mjs",
     "studio": "remotion studio src/remotion/index.jsx",
-    "typecheck": "echo 'plain JS, nothing to typecheck'"
+    "typecheck": "echo 'plain JS, nothing to typecheck'",
+    "test": "node --test \"test/*.test.mjs\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1152.0",

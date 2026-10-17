@@ -220,7 +220,7 @@ Written 16 Oct 2026 from third-party pricing summaries, not the vendors' own pri
 - Early launch: 1,000 new users a month, 3,000 AI poems, 1,500 videos.
 - Growth: 5,000 new users a month (about 10,000 active), 30,000 AI poems, 15,000 videos.
 - A poem request sends about 200 tokens and returns about 300 to 450, so roughly $0.008 per request on `claude-sonnet-4-6` at $3 input / $15 output per million tokens (3 variants per request, `max_tokens` 800 so at most about $0.013).
-- A finished video is about 0.7 MB (measured on a 13-second test render). Rendering was measured (see the measured sizing section at the end): about 6 minutes of one CPU per 22-second video, roughly 360 CPU-seconds, and a 1.6 GB memory peak.
+- A finished video is about 0.7 MB (measured on a 13-second test render). Rendering was measured (see the measured sizing section at the end): at full HD about 6 minutes of one CPU per 22-second video, roughly 360 CPU-seconds, and a 1.6 GB memory peak; the output is now 720x1280 by default, which took 61 seconds on 4 CPUs instead of 123 (about twice as fast).
 - Each new user needs about 1.3 SMS verifications.
 
 ### By service
@@ -412,3 +412,5 @@ It would work technically, and it suits an all-Lambda design (no connections to 
 - No migrations tool; schema changes are manual. Reporting needs exports.
 
 Verdict: stay on Postgres (Neon). The saving is a few tens of dollars at growth and nothing at launch, against a full rewrite. DynamoDB is a good fit for small key-value jobs (such as a shared rate-limit or session store) if needed later.
+
+Update (17 Oct 2026): the renderer now outputs 720x1280 by default (`RENDER_SCALE=0.6667`; use 1 for full HD). A 22-second video took 61 seconds on 4 CPUs at 720p against 123 seconds at 1080p, so the CPU-seconds, per-render costs and worker capacity above are roughly halved at the default size (one 2-vCPU worker makes about 40 videos an hour). The numbers above were measured at full HD.
