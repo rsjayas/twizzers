@@ -52,7 +52,7 @@ In `mobile/.env` set `EXPO_PUBLIC_API_URL`:
 - Android emulator: `http://10.0.2.2:8000` (the default).
 - Real phone on the same Wi-Fi: `http://<your computer's LAN IP>:8000`. On Windows allow ports 8000 and 4000 through the firewall.
 
-Scan the QR code with Expo Go. Dev login accepts any email and checks no password. The flow: sign in, write or generate a poem, pick a variant, choose style and music, wait for the video, share the link.
+Scan the QR code with Expo Go. Dev login accepts any email and checks no password. The flow: sign in, write or generate a poem, pick a variant, choose style and music, wait for the video, share the link. Also try My videos, and My account (sign out, delete account). To see credits, turn payments on under Settings in the admin dashboard (the app then shows a credits chip and the price).
 
 Real Firebase login (email + password, Google) needs a development build instead of Expo Go: see `mobile/README.md`.
 

@@ -3,14 +3,23 @@ import { Linking, View } from 'react-native';
 import { ApiError, api } from '../api';
 import { auth } from '../auth';
 import { CHECKOUT_URL, API_BASE } from '../config';
-import type { Poem } from '../types';
+import type { AppConfig, Poem } from '../types';
 import { Button, Chip, ErrorText, Field, Screen } from '../ui';
 
 const OCCASIONS = ['anniversary', 'apology', 'gratitude', 'long_distance', 'birthday', 'just_because'];
 const TONES = ['deeply_romantic', 'playful', 'nostalgic'];
 const label = (s: string) => s.replace(/_/g, ' ');
 
-export function CreateScreen({ onPoem, onSignOut }: { onPoem: (poem: Poem) => void; onSignOut: () => void }) {
+type Props = {
+  onPoem: (poem: Poem) => void;
+  config: AppConfig | null;
+  credits: number | null;
+  onVideos: () => void;
+  onAccount: () => void;
+  onCreditsChanged: () => void;
+};
+
+export function CreateScreen({ onPoem, config, credits, onVideos, onAccount, onCreditsChanged }: Props) {
   const [mode, setMode] = useState<'ai' | 'write'>('ai');
   const [occasion, setOccasion] = useState(OCCASIONS[0]);
   const [tone, setTone] = useState(TONES[0]);
@@ -38,6 +47,7 @@ export function CreateScreen({ onPoem, onSignOut }: { onPoem: (poem: Poem) => vo
             })
           : await api.writePoem(own.trim());
       onPoem(poem);
+      onCreditsChanged();
     } catch (e) {
       if (e instanceof ApiError && e.status === 402) setNeedsCredits(true);
       setError(e instanceof Error ? e.message : 'Something went wrong');
@@ -59,6 +69,11 @@ export function CreateScreen({ onPoem, onSignOut }: { onPoem: (poem: Poem) => vo
 
   return (
     <Screen title="Write your poem" subtitle="Let AI help, or write it yourself.">
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+        <Chip label="My videos" selected={false} onPress={onVideos} />
+        <Chip label="My account" selected={false} onPress={onAccount} />
+        {config?.payments_enabled ? <Chip label={`Credits: ${credits ?? '…'}`} selected={false} onPress={() => {}} /> : null}
+      </View>
       <View style={{ flexDirection: 'row', marginBottom: 16 }}>
         <Chip label="AI poem" selected={mode === 'ai'} onPress={() => setMode('ai')} />
         <Chip label="I'll write it" selected={mode === 'write'} onPress={() => setMode('write')} />
@@ -81,14 +96,15 @@ export function CreateScreen({ onPoem, onSignOut }: { onPoem: (poem: Poem) => vo
       )}
 
       <ErrorText message={error} />
-      {needsCredits && CHECKOUT_URL ? <Button label="Buy credits" onPress={buyCredits} secondary /> : null}
+      {config?.payments_enabled && CHECKOUT_URL && (needsCredits || (credits ?? 1) < config.cost_per_story_credits) ? (
+        <Button label="Buy credits" onPress={buyCredits} secondary />
+      ) : null}
       <Button
-        label={mode === 'ai' ? 'Generate poems' : 'Continue'}
+        label={mode === 'ai' ? (config?.payments_enabled ? `Generate poems (${config.cost_per_story_credits} credits)` : 'Generate poems') : 'Continue'}
         onPress={go}
         loading={busy}
         disabled={mode === 'write' && own.trim().length < 4}
       />
-      <Button label="Sign out" onPress={onSignOut} secondary />
     </Screen>
   );
 }

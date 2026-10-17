@@ -34,6 +34,8 @@ export interface AuthProvider {
   verifyPhoneCode(input: { name: string; code: string }): Promise<User>;
   getToken(): Promise<string | null>;
   signOut(): Promise<void>;
+  /** Deletes the sign-in account itself (after the backend erased the data). */
+  deleteAccount(): Promise<void>;
 }
 
 async function postJson<T>(path: string, body: unknown, token?: string): Promise<T> {
@@ -53,6 +55,8 @@ async function postJson<T>(path: string, body: unknown, token?: string): Promise
       detail = (await res.json()).detail ?? '';
     } catch {}
     if (detail === 'email_not_verified') throw new Error('email_not_verified');
+    if (detail === 'signups_closed') throw new Error('New accounts are closed right now. Please try again later.');
+    if (detail === 'account_blocked') throw new Error('This account has been blocked. Contact support if you think this is a mistake.');
     throw new Error(`Login failed (${res.status})`);
   }
   return (await res.json()) as T;
@@ -71,6 +75,7 @@ export function friendlyError(e: unknown): string {
     'auth/too-many-requests': 'Too many attempts. Wait a few minutes and try again.',
     'auth/network-request-failed': 'No connection. Check your internet and try again.',
     'auth/user-disabled': 'This account has been disabled.',
+    'auth/requires-recent-login': 'For safety, please sign in again and then retry.',
     'auth/invalid-verification-code': 'That code is not correct.',
     'auth/account-exists-with-different-credential': 'This email is already registered with another sign-in method.',
   };
@@ -121,6 +126,9 @@ class DevAuth implements AuthProvider {
     return this.user ? `dev:${this.user.id}` : null;
   }
   async signOut() {
+    this.user = null;
+  }
+  async deleteAccount() {
     this.user = null;
   }
 }
@@ -235,6 +243,20 @@ class FirebaseAuth implements AuthProvider {
       await GoogleSignin.signOut();
     } catch {
       // not signed in with Google, or the module is unavailable
+    }
+  }
+
+  async deleteAccount() {
+    const { getAuth, deleteUser } = await firebase();
+    const user = getAuth().currentUser;
+    if (!user) return;
+    try {
+      await deleteUser(user);
+    } catch (e) {
+      if ((e as { code?: string })?.code === 'auth/requires-recent-login') {
+        throw new Error('Your videos and data are deleted. To finish removing your login, sign in again and delete once more.');
+      }
+      throw e;
     }
   }
 }

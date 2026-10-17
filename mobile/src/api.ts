@@ -1,6 +1,14 @@
 import { API_BASE } from './config';
 import { auth } from './auth';
-import type { Creation, GenerateInput, MusicTrack, Poem, Template } from './types';
+import type { AppConfig, Creation, GenerateInput, MusicTrack, MyCreation, Poem, Template } from './types';
+
+/** Server error codes turned into sentences a person can act on. */
+const MESSAGES: Record<string, string> = {
+  signups_closed: 'New accounts are closed right now. Please try again later.',
+  account_blocked: 'This account has been blocked. Contact support if you think this is a mistake.',
+  account_deleted: 'This account was deleted.',
+  email_not_verified: 'Please confirm your email address first.',
+};
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -28,7 +36,7 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
     let detail = `Request failed (${res.status})`;
     try {
       const data = await res.json();
-      if (typeof data.detail === 'string') detail = data.detail;
+      if (typeof data.detail === 'string') detail = MESSAGES[data.detail] ?? data.detail;
     } catch {}
     throw new ApiError(res.status, detail);
   }
@@ -36,6 +44,10 @@ async function request<T>(path: string, init: { method?: string; body?: unknown;
 }
 
 export const api = {
+  config: () => request<AppConfig>('/config', { auth: false }),
+  balance: () => request<{ credits_balance: number }>('/credits/balance'),
+  myCreations: () => request<MyCreation[]>('/creations/mine'),
+  eraseMe: () => request<{ ok: boolean }>('/auth/me/erase', { method: 'POST', body: { confirm: 'DELETE' } }),
   generatePoem: (input: GenerateInput) => request<Poem>('/poems/generate', { method: 'POST', body: input }),
   writePoem: (content: string) => request<Poem>('/poems/write', { method: 'POST', body: { content } }),
   selectVariant: (poemId: string, variantId: string) =>

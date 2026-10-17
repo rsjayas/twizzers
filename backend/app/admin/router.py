@@ -6,6 +6,7 @@ import csv
 import datetime as dt
 import io
 import os
+import uuid
 from typing import Optional
 
 import httpx
@@ -198,8 +199,12 @@ def list_users(q: str = "", limit: int = 25, offset: int = 0, db: Session = Depe
     term = q.strip()
     if term:
         like = f"%{term}%"
-        query = query.filter(or_(models.User.name.ilike(like), models.User.phone.ilike(like),
-                                 models.User.email.ilike(like), models.User.id == term))
+        conditions = [models.User.name.ilike(like), models.User.phone.ilike(like), models.User.email.ilike(like)]
+        try:
+            conditions.append(models.User.id == str(uuid.UUID(term)))  # an exact user id, only if it is one
+        except ValueError:
+            pass
+        query = query.filter(or_(*conditions))
     total = query.count()
     rows = query.order_by(models.User.created_at.desc()).limit(limit).offset(offset).all()
     return {"total": total, "items": [_user_out(u) for u in rows]}

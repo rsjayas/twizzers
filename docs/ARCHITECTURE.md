@@ -28,7 +28,7 @@ Status legend: **Built** = code exists and was exercised in tests; **Partial** =
 | Media storage + CDN | **Cloudflare R2** + Cloudflare CDN (no egress fees) | Partial: the render service uploads to R2 when `R2_*` is set (tested against a fake S3 endpoint only; real R2 and CDN domain not set up) |
 | Music | Licensed library (**Epidemic Sound** or **Artlist**) | Planned. For now: three original synthesised placeholder tracks served by the backend at `/static/music/` (render tested with audio) |
 | Animated templates | Lottie / Rive files | Planned. Seed data uses placeholder URLs; the current video uses a code-drawn gradient with falling petals |
-| Mobile app | **React Native (Expo, TypeScript)**; distributed on Google Play (App Store later) | Partial: all create-flow screens written, typechecks and bundles for Android; not run on a device; Firebase login written but untested (dev login is the default) |
+| Mobile app | **React Native (Expo, TypeScript)**; distributed on Google Play (App Store later) | Partial: create flow, My videos, credits (balance, price, Buy credits, return link), account deletion and Firebase login written; typechecks and bundles for Android; the screens were driven in a browser (web build against a local API) but never on a phone; Firebase login untested (dev login is the default) |
 | Credits checkout page hosting | **Cloudflare Pages** (static file on its own domain) | Planned |
 | Backend API hosting | Render, Railway or Fly.io (pick a region near India) | Planned |
 | Render worker hosting | Separate worker server, or Remotion Lambda on AWS | Planned |

@@ -2,6 +2,8 @@
 
 Flow: login -> write or AI-generate a poem -> pick one of 3 variants -> choose style and music -> video renders (the app polls) -> share the link (`/v/<slug>` public page).
 
+Also: **My videos** (everything you made, share again), **credits** (when payments are on: balance chip, price on the button, Buy credits opens `EXPO_PUBLIC_CHECKOUT_URL` in the browser with your login token in the URL fragment; the checkout page sends you back with `tweezers://credits-success` and the app refreshes the balance, also whenever the app returns to the front), and **My account** (sign out, privacy policy and terms links, **Delete my account**: erases your data on the server, then deletes the login; Firebase may ask you to sign in again first).
+
 ```bash
 cd mobile
 cp .env.example .env     # set EXPO_PUBLIC_API_URL

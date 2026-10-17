@@ -136,3 +136,19 @@ def test_admin_accounts_and_audit_log(client, make_admin):
 
     actions = [a["action"] for a in client.get("/admin/api/audit?limit=100", headers=boss).json()["items"]]
     assert "admin.create" in actions and "admin.update" in actions
+
+
+def test_user_search_by_text_and_by_id(client, make_admin, make_user):
+    _, support, _ = make_admin("support")
+    uid, _ = make_user()
+    from app import models
+    from app.database import SessionLocal
+    db = SessionLocal()
+    db.query(models.User).filter(models.User.id == uid).update({"name": "Searchable Person", "email": "searchable.person@example.com"})
+    db.commit()
+    db.close()
+    for term in ["Searchable", "searchable.person@", uid]:
+        found = client.get(f"/admin/api/users?q={term}", headers=support)
+        assert found.status_code == 200, term
+        assert any(u["id"] == uid for u in found.json()["items"]), term
+    assert client.get("/admin/api/users?q=not-a-uuid-at-all", headers=support).status_code == 200
